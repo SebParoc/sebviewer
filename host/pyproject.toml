@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sebviewer-host"
+version = "0.1.0"
+description = "SebViewer host: control this Linux PC from the SebViewer Android app"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = [
+    "websockets>=12",
+    "Pillow>=10",
+    "zeroconf>=0.130",
+    "qrcode>=7",
+]
+
+[project.optional-dependencies]
+x11 = ["mss>=9", "pynput>=1.7"]
+
+[project.scripts]
+sebviewer-host = "sebviewer_host.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sebviewer_host*"]

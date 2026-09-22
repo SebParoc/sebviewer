@@ -1,0 +1,19 @@
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/*.iml
+android/.kotlin/
+*.keystore
+*.jks
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+host/dist/
+host/build/
+.venv/
+venv/

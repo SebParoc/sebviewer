@@ -1,0 +1,86 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version from tag
+        id: ver
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          IFS=. read -r MAJ MIN PAT <<< "$VER"
+          CODE=$((MAJ * 10000 + MIN * 100 + PAT))
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          sed -i "s/^version = .*/version = \"$VER\"/" host/pyproject.toml
+          sed -i "s/^__version__ = .*/__version__ = \"$VER\"/" host/sebviewer_host/__init__.py
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.10.2
+
+      - name: Restore signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.SEBVIEWER_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "SEBVIEWER_KEYSTORE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+          else
+            echo "::warning::No signing key configured, APK will be debug-signed"
+          fi
+
+      - name: Build APK
+        working-directory: android
+        env:
+          SEBVIEWER_KEYSTORE_PASSWORD: ${{ secrets.SEBVIEWER_KEYSTORE_PASSWORD }}
+          SEBVIEWER_KEY_ALIAS: sebviewer
+        run: |
+          gradle assembleRelease --no-daemon \
+            -PsebviewerVersionName=${{ steps.ver.outputs.version }} \
+            -PsebviewerVersionCode=${{ steps.ver.outputs.code }}
+          cp app/build/outputs/apk/release/app-release.apk "../SebViewer-${{ steps.ver.outputs.version }}.apk"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build host package
+        working-directory: host
+        run: |
+          python -m pip install -q build
+          python -m build
+          cp install.sh ../install-host.sh
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: SebViewer ${{ steps.ver.outputs.version }}
+          generate_release_notes: true
+          body: |
+            ## Install
+            **Android:** download `SebViewer-${{ steps.ver.outputs.version }}.apk` below and open it.
+
+            **Linux PC:**
+            ```bash
+            curl -fsSL https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/install-host.sh | bash
+            sebviewer-host
+            ```
+          files: |
+            SebViewer-${{ steps.ver.outputs.version }}.apk
+            host/dist/*.whl
+            host/dist/*.tar.gz
+            install-host.sh
