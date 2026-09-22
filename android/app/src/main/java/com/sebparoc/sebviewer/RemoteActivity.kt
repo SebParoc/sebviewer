@@ -82,6 +82,7 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
         fun key(id: Int, name: String) = findViewById<Button>(id).setOnClickListener { tapKey(name) }
         fun modifier(id: Int, name: String) {
             val b = findViewById<Button>(id)
+            b.alpha = 0.6f
             b.setOnClickListener { toggleModifier(name, b) }
         }
         findViewById<Button>(R.id.btnKeyboard).setOnClickListener { toggleKeyboard() }
@@ -149,7 +150,6 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
             activeModifiers[name] = b
             send(JSONObject().put("t", "key").put("k", name).put("d", true))
             b.alpha = 1f
-            b.setBackgroundColor(getColor(R.color.key_active))
         }
     }
 
@@ -160,7 +160,6 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
             b.alpha = 0.6f
         }
         activeModifiers.clear()
-        // restore default tonal background by re-inflating style is heavy; alpha is enough
     }
 
     private fun tapKey(name: String) {
