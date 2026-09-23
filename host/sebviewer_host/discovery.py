@@ -78,3 +78,24 @@ class Advertiser:
             except Exception:  # noqa: BLE001
                 pass
             self._zc = None
+
+
+def tailscale_info() -> dict | None:
+    """Return {"ip": ..., "dns": ...} if Tailscale is installed and connected."""
+    import json
+    import shutil
+    import subprocess
+
+    exe = shutil.which("tailscale")
+    if not exe:
+        return None
+    try:
+        out = subprocess.run([exe, "status", "--json"], capture_output=True, text=True, timeout=3)
+        data = json.loads(out.stdout)
+        me = data.get("Self") or {}
+        ips = [ip for ip in me.get("TailscaleIPs", []) if "." in ip]
+        if not ips or not me.get("Online", True):
+            return None
+        return {"ip": ips[0], "dns": (me.get("DNSName") or "").rstrip(".")}
+    except Exception:  # noqa: BLE001
+        return None

@@ -22,6 +22,7 @@ class ConnectActivity : AppCompatActivity() {
     private lateinit var status: TextView
     private lateinit var emptyHosts: TextView
     private val adapter = HostAdapter { onHostPicked(it) }
+    private val savedAdapter = SavedAdapter({ onSavedPicked(it) }, { onSavedLongPressed(it) })
     private var discovery: HostDiscovery? = null
 
     private val remote = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
@@ -41,6 +42,9 @@ class ConnectActivity : AppCompatActivity() {
         val list = findViewById<RecyclerView>(R.id.hostList)
         list.layoutManager = LinearLayoutManager(this)
         list.adapter = adapter
+        val saved = findViewById<RecyclerView>(R.id.savedList)
+        saved.layoutManager = LinearLayoutManager(this)
+        saved.adapter = savedAdapter
 
         hostInput.setText(prefs.host)
         portInput.setText(prefs.port.toString())
@@ -59,6 +63,27 @@ class ConnectActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         discovery?.start()
+        refreshSaved()
+    }
+
+    private fun refreshSaved() {
+        val list = SavedHosts.load(this)
+        savedAdapter.submit(list)
+        findViewById<View>(R.id.savedTitle).visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
+    }
+
+    private fun onSavedPicked(h: SavedHost) {
+        hostInput.setText(h.address)
+        portInput.setText(h.port.toString())
+        if (pinInput.text.isNullOrBlank()) pinInput.requestFocus() else connect()
+    }
+
+    private fun onSavedLongPressed(h: SavedHost) {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setMessage(getString(R.string.forget_host, h.name, h.address))
+            .setPositiveButton(R.string.forget) { _, _ -> SavedHosts.forget(this, h); refreshSaved() }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     override fun onStop() {
@@ -87,6 +112,31 @@ class ConnectActivity : AppCompatActivity() {
             .putExtra(RemoteActivity.EXTRA_PORT, port)
             .putExtra(RemoteActivity.EXTRA_PIN, pin)
         remote.launch(i)
+    }
+
+    private class SavedAdapter(
+        private val onClick: (SavedHost) -> Unit,
+        private val onLongClick: (SavedHost) -> Unit,
+    ) : RecyclerView.Adapter<HostAdapter.VH>() {
+        private var items: List<SavedHost> = emptyList()
+
+        fun submit(list: List<SavedHost>) {
+            items = list
+            notifyDataSetChanged()
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): HostAdapter.VH =
+            HostAdapter.VH(LayoutInflater.from(parent.context).inflate(R.layout.item_host, parent, false))
+
+        override fun getItemCount() = items.size
+
+        override fun onBindViewHolder(holder: HostAdapter.VH, position: Int) {
+            val h = items[position]
+            holder.name.text = h.name
+            holder.address.text = "${h.address}:${h.port}"
+            holder.itemView.setOnClickListener { onClick(h) }
+            holder.itemView.setOnLongClickListener { onLongClick(h); true }
+        }
     }
 
     private class HostAdapter(private val onClick: (HostDiscovery.Host) -> Unit) :

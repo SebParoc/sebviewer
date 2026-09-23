@@ -36,10 +36,23 @@ press *Share*, and it is remembered for next time. The host then prints somethin
 
 ### From anywhere, not just the same Wi-Fi
 
-The host listens on every address the PC has. The easiest way to reach it from outside your
-home network is a VPN such as [Tailscale](https://tailscale.com) on both the PC and the phone:
-then use the PC's Tailscale address (100.x.y.z) in the app. Traffic is plain WebSocket, so
-only expose the port over a VPN or on a trusted LAN, never directly on the internet.
+Use [Tailscale](https://tailscale.com): a free private network between your own devices that
+works from any Wi-Fi or mobile network, in any country, with no port forwarding. Traffic between
+phone and PC is encrypted end to end (WireGuard), which matters because SebViewer itself speaks
+plain WebSocket.
+
+1. PC: `sudo dnf install tailscale && sudo tailscale up` (or the package for your distro), sign in.
+2. Phone: install the Tailscale app from the Play Store and sign in with the **same account**.
+   Leave the Tailscale VPN switched on.
+3. `sebviewer-host` prints the PC's Tailscale name and address under *From anywhere*, e.g.
+   `fedora-1.tail3a04e7.ts.net` / `100.67.200.39`. Type either one in the app and connect.
+   After the first successful connection the PC appears under *Saved PCs*, so later it is one tap.
+
+Tips for mobile data: pick *Data saver* or *Smooth* in the Quality menu. If the network
+switches (Wi-Fi to 4G, tunnel, etc.) the app reconnects by itself a few times.
+
+Do not forward port 7788 on your router instead; the PIN is the only protection on the
+WebSocket, which is fine on a LAN or VPN but not on the open internet.
 
 ## Using the app
 

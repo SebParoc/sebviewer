@@ -2,7 +2,7 @@
     <string name="app_name">SebViewer</string>
     <string name="title_connect">Connect to a PC</string>
     <string name="hosts_on_network">PCs on this network</string>
-    <string name="no_hosts_yet">Searching… start sebviewer-host on your PC. You can also type an address below.</string>
+    <string name="no_hosts_yet">Searching this Wi-Fi… start sebviewer-host on your PC, or type an address below.</string>
     <string name="host_hint">Host address (IP or name)</string>
     <string name="port_hint">Port</string>
     <string name="pin_hint">PIN shown by sebviewer-host</string>
@@ -17,4 +17,9 @@
     <string name="fit_screen">Fit</string>
     <string name="error_empty_host">Enter the host address</string>
     <string name="error_empty_pin">Enter the PIN</string>
+    <string name="saved_pcs">Saved PCs (long press to forget)</string>
+    <string name="forget_host">Forget %1$s (%2$s)?</string>
+    <string name="forget">Forget</string>
+    <string name="reconnecting">Connection lost, reconnecting (%1$d/%2$d)…</string>
+    <string name="remote_hint">Away from home? Install the Tailscale app on the phone, sign in with the same account as the PC, and type the PC\'s Tailscale name or 100.x address here.</string>
 </resources>

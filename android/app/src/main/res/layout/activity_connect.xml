@@ -25,9 +25,25 @@
             android:textAppearance="?attr/textAppearanceBodyLarge" />
 
         <TextView
+            android:id="@+id/savedTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
+            android:text="@string/saved_pcs"
+            android:textAppearance="?attr/textAppearanceTitleSmall"
+            android:visibility="gone" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/savedList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:nestedScrollingEnabled="false" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
             android:text="@string/hosts_on_network"
             android:textAppearance="?attr/textAppearanceTitleSmall" />
 
@@ -116,7 +132,15 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
+            android:layout_marginTop="16dp"
+            android:alpha="0.7"
+            android:text="@string/remote_hint"
+            android:textAppearance="?attr/textAppearanceBodySmall" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
             android:alpha="0.7"
             android:text="@string/help_gestures"
             android:textAppearance="?attr/textAppearanceBodySmall" />

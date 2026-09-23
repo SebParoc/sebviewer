@@ -29,6 +29,11 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
     private lateinit var toolbar: View
     private lateinit var prefs: Prefs
     private var client: RemoteClient? = null
+    private var host = ""
+    private var port = 7788
+    private var pin = ""
+    private var reconnects = 0
+    private var everConnected = false
     private val main = Handler(Looper.getMainLooper())
     private var hostName = ""
     private var remoteW = 0
@@ -70,12 +75,17 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
         }
         wireToolbar()
 
-        val host = intent.getStringExtra(EXTRA_HOST) ?: ""
-        val port = intent.getIntExtra(EXTRA_PORT, 7788)
-        val pin = intent.getStringExtra(EXTRA_PIN) ?: ""
+        host = intent.getStringExtra(EXTRA_HOST) ?: ""
+        port = intent.getIntExtra(EXTRA_PORT, 7788)
+        pin = intent.getStringExtra(EXTRA_PIN) ?: ""
         status.text = getString(R.string.connecting)
-        client = RemoteClient(host, port, pin, this).also { it.connect() }
+        connect()
         main.postDelayed(statsTick, 1000)
+    }
+
+    private fun connect() {
+        client?.close()
+        client = RemoteClient(host, port, pin, this).also { it.connect() }
     }
 
     private fun wireToolbar() {
@@ -246,6 +256,10 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
         main.post {
             hostName = name
             remoteW = width; remoteH = height
+            everConnected = true
+            reconnects = 0
+            SavedHosts.remember(this, SavedHost(name, host, port))
+            status.visibility = View.VISIBLE
             updateStatus()
             applyQuality(prefs.quality)
             main.postDelayed({ status.visibility = View.GONE }, 4000)
@@ -264,11 +278,26 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
     }
 
     override fun onError(message: String) {
-        main.post { fail(message) }
+        // Host-side rejections (wrong PIN etc.) are final; transport errors get retried.
+        val fatal = message.contains("PIN", ignoreCase = true) || message.contains("attempts")
+        main.post { if (fatal) fail(message) else lost(message) }
     }
 
     override fun onClosed() {
-        main.post { fail("Disconnected") }
+        main.post { lost("Disconnected") }
+    }
+
+    /** Connection dropped: retry a few times (mobile networks switch a lot). */
+    private fun lost(message: String) {
+        if (isFinishing) return
+        if (!everConnected || reconnects >= MAX_RECONNECTS) {
+            fail(message)
+            return
+        }
+        reconnects++
+        status.visibility = View.VISIBLE
+        status.text = getString(R.string.reconnecting, reconnects, MAX_RECONNECTS)
+        main.postDelayed({ if (!isFinishing) connect() }, 1500L * reconnects)
     }
 
     private fun fail(message: String) {
@@ -306,6 +335,7 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
     }
 
     companion object {
+        private const val MAX_RECONNECTS = 5
         const val EXTRA_HOST = "host"
         const val EXTRA_PORT = "port"
         const val EXTRA_PIN = "pin"

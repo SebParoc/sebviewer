@@ -13,7 +13,7 @@ from pathlib import Path
 
 from . import __version__
 from .config import CONFIG_FILE, get_or_create_pin, load_config, save_config
-from .discovery import Advertiser, is_tailscale, list_ipv4
+from .discovery import Advertiser, is_tailscale, list_ipv4, tailscale_info
 from .server import Server, StreamSettings
 
 log = logging.getLogger("sebviewer")
@@ -84,10 +84,19 @@ def print_banner(port: int, pin: str) -> None:
     print("=" * 56)
     print(f"  PIN : {pin}")
     print(f"  Port: {port}")
-    print("  Addresses:")
+    print("  On this network:")
     for name, addr in list_ipv4():
-        note = "  <- Tailscale, reachable from anywhere" if is_tailscale(addr) else ""
-        print(f"    {addr:<16} ({name}){note}")
+        if is_tailscale(addr) or name.startswith(("docker", "br-", "veth", "virbr")):
+            continue
+        print(f"    {addr:<16} ({name})")
+    ts = tailscale_info()
+    if ts:
+        print("  From anywhere (phone needs the Tailscale app, same account):")
+        if ts["dns"]:
+            print(f"    {ts['dns']}")
+        print(f"    {ts['ip']}")
+    else:
+        print("  From other networks: install Tailscale on PC and phone (tailscale.com/download)")
     print("  Open the SebViewer app, pick this PC (or type an address) and enter the PIN.")
     print("=" * 56, flush=True)
 
