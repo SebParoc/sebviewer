@@ -116,6 +116,43 @@ class WaylandPortalBackend(Backend):
         self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
         cfg = load_config()
         restore_token = cfg.get("portal_restore_token")
+        res = self._start_session(restore_token)
+        wanted = DEVICE_KEYBOARD | DEVICE_POINTER
+        if restore_token and (int(res.get("devices", 0)) & wanted) != wanted:
+            # A stale token can restore the screen share but grant no keyboard/mouse,
+            # which makes every input call fail. Drop it and ask again.
+            log.warning("Saved permission grants no keyboard/mouse (devices=%s); "
+                        "asking again. Press Share on the PC.", res.get("devices"))
+            self._close_session()
+            cfg.pop("portal_restore_token", None)
+            save_config(cfg)
+            restore_token = None
+            res = self._start_session(None)
+        if (int(res.get("devices", 0)) & wanted) != wanted:
+            log.error("Remote control permission was not granted (devices=%s): "
+                      "the screen will show but input will not work.", res.get("devices"))
+        self.clipboard_enabled = bool(res.get("clipboard_enabled", False))
+        streams = res.get("streams") or []
+        if not streams:
+            raise PortalError("no screen was shared")
+        self.node_id, props = streams[0]
+        size = props.get("size")
+        if size:
+            self.width, self.height = int(size[0]), int(size[1])
+        new_token = res.get("restore_token")
+        if new_token and new_token != restore_token:
+            cfg["portal_restore_token"] = new_token
+            save_config(cfg)
+        self._finish_start()
+
+    def _close_session(self) -> None:
+        try:
+            self.bus.call_sync(PORTAL_BUS, self.session, IFACE_SESSION, "Close", None, None,
+                               Gio.DBusCallFlags.NONE, 2000, None)
+        except GLib.Error:
+            pass
+
+    def _start_session(self, restore_token):
 
         res = self._request(IFACE_REMOTE, "CreateSession", [],
                             {"session_handle_token": GLib.Variant("s", self._token())})
@@ -147,20 +184,11 @@ class WaylandPortalBackend(Backend):
             log.warning("A system dialog is asking which screen to share. "
                         "Pick your monitor and press Share (only needed once).")
         res = self._request(IFACE_REMOTE, "Start", [session_v, GLib.Variant("s", "")], {})
-        log.debug("Start results: %s", {k: v for k, v in res.items() if k != "streams"})
-        self.clipboard_enabled = bool(res.get("clipboard_enabled", False))
-        streams = res.get("streams") or []
-        if not streams:
-            raise PortalError("no screen was shared")
-        self.node_id, props = streams[0]
-        size = props.get("size")
-        if size:
-            self.width, self.height = int(size[0]), int(size[1])
-        new_token = res.get("restore_token")
-        if new_token and new_token != restore_token:
-            cfg["portal_restore_token"] = new_token
-            save_config(cfg)
+        log.info("Portal granted devices=%s clipboard=%s",
+                 res.get("devices"), res.get("clipboard_enabled"))
+        return res
 
+    def _finish_start(self) -> None:
         # PipeWire fd
         reply, fdlist = self.bus.call_with_unix_fd_list_sync(
             PORTAL_BUS, PORTAL_PATH, IFACE_SCREENCAST, "OpenPipeWireRemote",
