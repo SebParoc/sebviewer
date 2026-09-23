@@ -16,8 +16,10 @@ curl -fsSL https://github.com/SebParoc/sebviewer/releases/latest/download/instal
 sebviewer-host
 ```
 
-The first start on Wayland pops up the desktop's "share your screen" dialog. Pick your monitor,
-press *Share*, and it is remembered for next time. The host then prints something like:
+On GNOME the host uses Mutter's own remote desktop interface, so no dialog ever appears and the
+PC can be controlled unattended, even after a suspend. On other Wayland desktops the first start
+pops up the "share your screen" dialog: pick your monitor, press *Share*, and it is remembered.
+The host then prints something like:
 
 ```
   PIN : not required (run with --require-pin to enable)
