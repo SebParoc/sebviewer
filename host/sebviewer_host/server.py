@@ -25,7 +25,9 @@ import hmac
 import io
 import json
 import logging
+import queue
 import socket
+import threading
 import time
 from dataclasses import dataclass, field
 
@@ -37,6 +39,7 @@ from .backends.base import Backend
 log = logging.getLogger(__name__)
 
 MAX_UNACKED = 2
+_MOVE = object()  # queue marker: apply the latest pending pointer move
 MAX_FAILURES = 5
 LOCKOUT_SECONDS = 30
 
@@ -74,6 +77,12 @@ class Server:
         self.capture_task: asyncio.Task | None = None
         self._failures: dict[str, list[float]] = {}
         self._backend_lock = asyncio.Lock()
+        # Input is applied by one worker thread, strictly in order: the portal
+        # calls are synchronous and must never overlap or reorder.
+        self._input_q: queue.SimpleQueue = queue.SimpleQueue()
+        self._pending_move: tuple[float, float] | None = None
+        self._move_lock = threading.Lock()
+        threading.Thread(target=self._input_worker, name="input", daemon=True).start()
 
     # ------------------------------------------------------------- lifecycle
     async def serve(self) -> None:
@@ -214,6 +223,8 @@ class Server:
             self._safe(self.backend.pointer_button, b, False)
         for k in list(client.held_keys):
             self._safe(self.backend.key, k, False)
+        if not self.clients:
+            self._safe(self.backend.release_all)
 
     async def _send_frames(self, client: Client) -> None:
         ws = client.ws
@@ -236,11 +247,32 @@ class Server:
             client.unacked += 1
 
     # ----------------------------------------------------------------- input
+    def _input_worker(self) -> None:
+        while True:
+            item = self._input_q.get()
+            if item is _MOVE:
+                with self._move_lock:
+                    move, self._pending_move = self._pending_move, None
+                if move is None:
+                    continue
+                fn, args = self.backend.pointer_move, move
+            else:
+                fn, args = item
+            try:
+                fn(*args)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("input failed: %s", exc)
+
     def _safe(self, fn, *args) -> None:
-        try:
-            fn(*args)
-        except Exception as exc:  # noqa: BLE001
-            log.warning("input failed: %s", exc)
+        self._input_q.put((fn, args))
+
+    def _move(self, x: float, y: float) -> None:
+        """Queue a pointer move; only the newest one is applied when we fall behind."""
+        with self._move_lock:
+            first = self._pending_move is None
+            self._pending_move = (x, y)
+        if first:
+            self._input_q.put(_MOVE)
 
     def _px(self, msg: dict):
         if "x" not in msg or "y" not in msg:
@@ -258,7 +290,7 @@ class Server:
         elif t == "move":
             p = self._px(msg)
             if p:
-                self._safe(b.pointer_move, *p)
+                self._move(*p)
         elif t == "btn":
             p = self._px(msg)
             if p:

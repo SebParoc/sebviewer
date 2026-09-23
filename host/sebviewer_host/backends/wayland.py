@@ -63,7 +63,8 @@ class WaylandPortalBackend(Backend):
         self._loop: Optional[GLib.MainLoop] = None
         self._loop_thread: Optional[threading.Thread] = None
         self._last_image: Optional[Image.Image] = None
-        self._pending_keys = set()
+        self._pressed_keys: set[int] = set()
+        self._pressed_buttons: set[int] = set()
 
     # ------------------------------------------------------------------ portal
     def _token(self) -> str:
@@ -206,6 +207,10 @@ class WaylandPortalBackend(Backend):
         return self._alive
 
     def stop(self) -> None:
+        try:
+            self.release_all()
+        except Exception:  # noqa: BLE001
+            pass
         self._alive = False
         if self.pipeline is not None:
             self.pipeline.set_state(Gst.State.NULL)
@@ -228,14 +233,17 @@ class WaylandPortalBackend(Backend):
         return self._consume(sample)
 
     def _notify(self, method: str, sig: str, *args) -> None:
-        params = GLib.Variant("(oa{sv}" + sig + ")", [self.session, {}, *args])
-        self.bus.call(PORTAL_BUS, PORTAL_PATH, IFACE_REMOTE, method, params, None,
-                      Gio.DBusCallFlags.NONE, -1, None, self._notify_done, method)
+        """Send one input event and wait for the portal to acknowledge it.
 
-    @staticmethod
-    def _notify_done(bus, result, method) -> None:
+        The calls must be synchronous: xdg-desktop-portal handles each method call
+        on a thread pool, so two in-flight async calls (a key press and its release)
+        can reach the compositor in the wrong order.  Mutter then drops the release
+        as a duplicate and the key stays pressed, auto-repeating forever.
+        """
+        params = GLib.Variant("(oa{sv}" + sig + ")", [self.session, {}, *args])
         try:
-            bus.call_finish(result)
+            self.bus.call_sync(PORTAL_BUS, PORTAL_PATH, IFACE_REMOTE, method, params, None,
+                               Gio.DBusCallFlags.NONE, 2000, None)
         except GLib.Error as exc:
             log.warning("%s failed: %s", method, exc.message)
 
@@ -247,6 +255,7 @@ class WaylandPortalBackend(Backend):
         if code is None:
             return
         self._notify("NotifyPointerButton", "iu", code, 1 if down else 0)
+        (self._pressed_buttons.add if down else self._pressed_buttons.discard)(code)
 
     def scroll(self, dx: int, dy: int) -> None:
         if dy:
@@ -256,6 +265,17 @@ class WaylandPortalBackend(Backend):
 
     def _keysym(self, keysym: int, down: bool) -> None:
         self._notify("NotifyKeyboardKeysym", "iu", int(keysym), 1 if down else 0)
+        (self._pressed_keys.add if down else self._pressed_keys.discard)(int(keysym))
+
+    def release_all(self) -> None:
+        """Release anything we still hold, so nothing stays stuck on the desktop."""
+        if not self._alive or self.bus is None:
+            return
+        for ks in list(self._pressed_keys):
+            self._keysym(ks, False)
+        for code in list(self._pressed_buttons):
+            self._notify("NotifyPointerButton", "iu", code, 0)
+        self._pressed_buttons.clear()
 
     def key(self, name: str, down: bool) -> None:
         keysym = keysym_for_name(name)

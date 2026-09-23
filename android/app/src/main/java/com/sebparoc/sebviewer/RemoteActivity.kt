@@ -15,6 +15,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -35,7 +36,6 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
     private var frames = 0
     private var fps = 0
     private val activeModifiers = LinkedHashMap<String, Button>()
-    private var keyboardShown = false
 
     private val statsTick = object : Runnable {
         override fun run() {
@@ -132,13 +132,13 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
     // ------------------------------------------------------------ keyboard
     private fun toggleKeyboard() {
         val imm = getSystemService(InputMethodManager::class.java)
-        if (keyboardShown) {
+        val shown = ViewCompat.getRootWindowInsets(keyInput)
+            ?.isVisible(WindowInsetsCompat.Type.ime()) == true
+        if (shown) {
             imm.hideSoftInputFromWindow(keyInput.windowToken, 0)
-            keyboardShown = false
         } else {
             keyInput.requestFocus()
             imm.showSoftInput(keyInput, InputMethodManager.SHOW_IMPLICIT)
-            keyboardShown = true
         }
     }
 
@@ -286,6 +286,7 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
     override fun onClick(button: Int, nx: Float, ny: Float) {
         send(JSONObject().put("t", "click").put("b", button).put("x", nx.toDouble()).put("y", ny.toDouble()))
         releaseModifiers()
+        keyInput.resetBuffer() // focus on the PC probably moved; drop stale IME context
     }
 
     override fun onButton(button: Int, down: Boolean, nx: Float, ny: Float) {

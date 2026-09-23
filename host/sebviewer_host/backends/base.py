@@ -50,3 +50,6 @@ class Backend:
 
     def type_text(self, text: str) -> None:
         raise NotImplementedError
+
+    def release_all(self) -> None:
+        """Release every key/button this backend still holds down."""
