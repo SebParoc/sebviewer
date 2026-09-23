@@ -15,7 +15,12 @@ def create_backend(kind: str = "auto"):
         else:
             kind = "x11"
     log.info("Using %s backend", kind)
-    if kind == "wayland":
+    if kind in ("wayland", "mutter"):
+        from . import mutter
+
+        if kind == "mutter" or (os.environ.get("SEBVIEWER_BACKEND") != "portal" and mutter.available()):
+            log.info("GNOME detected: using Mutter's remote desktop API (no dialog)")
+            return mutter.MutterBackend()
         from .wayland import WaylandPortalBackend
 
         return WaylandPortalBackend()
