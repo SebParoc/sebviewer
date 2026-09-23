@@ -22,7 +22,8 @@ class RemoteClient(
     interface Listener {
         fun onHello(width: Int, height: Int, name: String)
         fun onSize(width: Int, height: Int)
-        fun onFrame(bitmap: Bitmap)
+        fun onFrame(bitmap: Bitmap, bytes: Int)
+        fun onPong(sentAt: Long)
         fun onError(message: String)
         fun onClosed()
     }
@@ -59,6 +60,7 @@ class RemoteClient(
                         "hello" -> listener.onHello(m.getInt("w"), m.getInt("h"), m.optString("name", "PC"))
                         "size" -> listener.onSize(m.getInt("w"), m.getInt("h"))
                         "err" -> listener.onError(m.optString("msg", "error"))
+                        "pong" -> listener.onPong(m.optLong("ts"))
                     }
                 } catch (e: Exception) {
                     Log.w(TAG, "bad message", e)
@@ -66,9 +68,10 @@ class RemoteClient(
             }
 
             override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-                val bmp = decode(bytes.toByteArray())
+                val data = bytes.toByteArray()
+                val bmp = decode(data)
                 webSocket.send(ACK)
-                if (bmp != null) listener.onFrame(bmp)
+                if (bmp != null) listener.onFrame(bmp, data.size)
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {

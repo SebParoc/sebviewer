@@ -43,4 +43,6 @@
     <string name="quality_sharp">Sharp · 1920 px, 15 fps</string>
     <string name="quality_saver">Data saver · 960 px, 10 fps</string>
     <string name="cd_status">Connection status</string>
+    <string name="connecting_to">Connecting to %1$s…</string>
+    <string name="back_again">Press back again to disconnect</string>
 </resources>

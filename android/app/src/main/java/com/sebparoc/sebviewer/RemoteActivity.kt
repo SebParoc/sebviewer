@@ -49,6 +49,19 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
     private var remoteH = 0
     private var frames = 0
     private var fps = 0
+    private var bytesThisSecond = 0L
+    private var kbps = 0L
+    private var latencyMs = -1L
+    private var pillPinned = false
+    private var lastBack = 0L
+    private lateinit var overlay: View
+    private lateinit var overlayText: TextView
+    private val pingTick = object : Runnable {
+        override fun run() {
+            send(JSONObject().put("t", "ping").put("ts", System.currentTimeMillis()))
+            main.postDelayed(this, 2000)
+        }
+    }
     private val modifierButtons = LinkedHashMap<String, MaterialButton>()
     private val hidePill = Runnable { statusPill.animate().alpha(0f).setDuration(300).start() }
 
@@ -56,6 +69,8 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
         override fun run() {
             fps = frames
             frames = 0
+            kbps = bytesThisSecond / 1024
+            bytesThisSecond = 0
             updateStatus()
             main.postDelayed(this, 1000)
         }
@@ -80,6 +95,12 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
         statusDot = findViewById(R.id.statusDot)
         panel = findViewById(R.id.panel)
         panelToggle = findViewById(R.id.panelToggle)
+        overlay = findViewById(R.id.overlay)
+        overlayText = findViewById(R.id.overlayText)
+        statusPill.setOnClickListener {
+            pillPinned = !pillPinned
+            if (pillPinned) main.removeCallbacks(hidePill) else showPill()
+        }
         screen.inputListener = this
         keyInput.onText = { sendText(it) }
         keyInput.onKey = { tapKey(it) }
@@ -99,8 +120,10 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
         port = intent.getIntExtra(EXTRA_PORT, 7788)
         pin = intent.getStringExtra(EXTRA_PIN) ?: ""
         setStatus(getString(R.string.connecting), R.color.unknown, autoHide = false)
+        showOverlay(getString(R.string.connecting_to, host))
         connect()
         main.postDelayed(statsTick, 1000)
+        main.postDelayed(pingTick, 1000)
 
         if (!prefs.guideShown) {
             val guide = findViewById<View>(R.id.guide)
@@ -147,7 +170,13 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
             }
         }
         val kb = findViewById<MaterialButton>(R.id.btnKeyboard)
-        kb.addOnCheckedChangeListener { _, checked -> showKeyboard(checked) }
+        kb.setOnClickListener {
+            // the click already toggled the lit state; the IME's real visibility decides it
+            val visible = imeVisible()
+            kb.isChecked = visible
+            showKeyboard(!visible)
+            haptic(it)
+        }
         findViewById<MaterialButton>(R.id.btnTrackpad).addOnCheckedChangeListener { _, checked ->
             screen.setTrackpad(checked)
         }
@@ -184,7 +213,7 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
         findViewById<Button>(R.id.btnQuality).setOnClickListener { showQualityDialog() }
         findViewById<Button>(R.id.btnDisconnect).setOnClickListener { finish() }
 
-        // keep the keyboard button in sync when the IME is dismissed with the back gesture
+        // mirror the real IME state (also covers dismissing it with the back gesture)
         ViewCompat.setOnApplyWindowInsetsListener(keyInput) { _, insets ->
             val visible = insets.isVisible(WindowInsetsCompat.Type.ime())
             if (kb.isChecked != visible) kb.isChecked = visible
@@ -197,13 +226,21 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
     }
 
     // ------------------------------------------------------------ keyboard
+    private fun imeVisible(): Boolean =
+        ViewCompat.getRootWindowInsets(keyInput)?.isVisible(WindowInsetsCompat.Type.ime()) == true
+
     private fun showKeyboard(show: Boolean) {
-        val imm = getSystemService(InputMethodManager::class.java)
+        val controller = WindowCompat.getInsetsController(window, keyInput)
         if (show) {
             keyInput.requestFocus()
-            imm.showSoftInput(keyInput, InputMethodManager.SHOW_IMPLICIT)
+            // ask once the focus change has been processed, otherwise the request can be ignored
+            keyInput.post {
+                controller.show(WindowInsetsCompat.Type.ime())
+                getSystemService(InputMethodManager::class.java)
+                    .showSoftInput(keyInput, InputMethodManager.SHOW_IMPLICIT)
+            }
         } else {
-            imm.hideSoftInputFromWindow(keyInput.windowToken, 0)
+            controller.hide(WindowInsetsCompat.Type.ime())
         }
     }
 
@@ -300,12 +337,50 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
     private fun showPill() {
         main.removeCallbacks(hidePill)
         statusPill.animate().alpha(1f).setDuration(150).start()
-        main.postDelayed(hidePill, 4000)
+        if (!pillPinned) main.postDelayed(hidePill, 4000)
+    }
+
+    private fun showOverlay(text: String) {
+        overlayText.text = text
+        overlay.visibility = View.VISIBLE
+        overlay.animate().alpha(1f).setDuration(150).start()
+    }
+
+    private fun hideOverlay() {
+        if (overlay.visibility != View.VISIBLE) return
+        overlay.animate().alpha(0f).setDuration(200).withEndAction { overlay.visibility = View.GONE }.start()
     }
 
     private fun updateStatus() {
         if (remoteW == 0 || !everConnected) return
-        statusText.text = "$hostName · ${remoteW}×$remoteH · $fps fps"
+        val lat = if (latencyMs >= 0) " · $latencyMs ms" else ""
+        val rate = if (kbps >= 1024) String.format("%.1f MB/s", kbps / 1024.0) else "$kbps KB/s"
+        statusText.text = "$hostName$lat · $fps fps · $rate"
+        val color = when {
+            latencyMs < 0 -> R.color.online
+            latencyMs < 80 -> R.color.online
+            latencyMs < 250 -> R.color.brand
+            else -> R.color.offline
+        }
+        ImageViewCompat.setImageTintList(statusDot, getColorStateList(color))
+    }
+
+    override fun onPong(sentAt: Long) {
+        main.post { latencyMs = System.currentTimeMillis() - sentAt }
+    }
+
+    /** Gesture navigation makes an accidental back-swipe easy; ask for a second one. */
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (panel.visibility == View.VISIBLE) { togglePanel(); return }
+        val now = System.currentTimeMillis()
+        if (now - lastBack < 2000) {
+            @Suppress("DEPRECATION")
+            super.onBackPressed()
+        } else {
+            lastBack = now
+            Toast.makeText(this, R.string.back_again, Toast.LENGTH_SHORT).show()
+        }
     }
 
     override fun onHello(width: Int, height: Int, name: String) {
@@ -324,10 +399,12 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
         main.post { remoteW = width; remoteH = height }
     }
 
-    override fun onFrame(bitmap: Bitmap) {
+    override fun onFrame(bitmap: Bitmap, bytes: Int) {
         main.post {
             frames++
+            bytesThisSecond += bytes
             screen.setFrame(bitmap)
+            hideOverlay()
         }
     }
 
@@ -348,7 +425,10 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
             return
         }
         reconnects++
-        setStatus(getString(R.string.reconnecting, reconnects, MAX_RECONNECTS), R.color.offline, autoHide = false)
+        latencyMs = -1
+        val msg = getString(R.string.reconnecting, reconnects, MAX_RECONNECTS)
+        setStatus(msg, R.color.offline, autoHide = false)
+        showOverlay(msg)
         main.postDelayed({ if (!isFinishing) connect() }, 1500L * reconnects)
     }
 
@@ -381,6 +461,7 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
 
     override fun onDestroy() {
         main.removeCallbacks(statsTick)
+        main.removeCallbacks(pingTick)
         main.removeCallbacks(hidePill)
         client?.close()
         client = null

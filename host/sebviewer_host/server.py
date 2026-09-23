@@ -11,6 +11,7 @@ Protocol (JSON text frames unless noted):
     {"t":"key","k":"Return","d":true}        d omitted = press and release
     {"t":"text","s":"hello"}
     {"t":"cfg","fps":20,"q":60,"w":1280}
+    {"t":"ping","ts":123}                    answered with {"t":"pong","ts":123}
   host -> client
     {"t":"hello","w":W,"h":H,"name":"host","version":"x"}
     {"t":"err","msg":"..."}
@@ -60,6 +61,7 @@ class Client:
     ack_event: asyncio.Event = field(default_factory=asyncio.Event)
     held_buttons: set = field(default_factory=set)
     held_keys: set = field(default_factory=set)
+    pong: str | None = None
 
 
 class Server:
@@ -214,6 +216,9 @@ class Server:
                     self._on_message(client, json.loads(raw))
                 except Exception as exc:  # noqa: BLE001
                     log.debug("bad message %r: %s", raw[:80], exc)
+                if client.pong is not None:
+                    pong, client.pong = client.pong, None
+                    await ws.send(pong)
         except Exception as exc:  # noqa: BLE001
             log.debug("connection error: %s", exc)
         finally:
@@ -291,6 +296,8 @@ class Server:
         if t == "ack":
             client.unacked = max(0, client.unacked - 1)
             client.ack_event.set()
+        elif t == "ping":
+            client.pong = json.dumps({"t": "pong", "ts": msg.get("ts")})
         elif t == "move":
             p = self._px(msg)
             if p:
