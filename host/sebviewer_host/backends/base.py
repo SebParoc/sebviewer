@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Callable, Optional
 
 from PIL import Image
 
@@ -20,6 +20,8 @@ class Backend:
 
     width: int = 0
     height: int = 0
+    #: called with text when the PC's clipboard changes (set by the server)
+    on_clipboard: Optional[Callable[[str], None]] = None
 
     def start(self) -> None:
         raise NotImplementedError
@@ -53,3 +55,6 @@ class Backend:
 
     def release_all(self) -> None:
         """Release every key/button this backend still holds down."""
+
+    def set_clipboard(self, text: str) -> None:
+        """Put text on the PC clipboard (best effort)."""

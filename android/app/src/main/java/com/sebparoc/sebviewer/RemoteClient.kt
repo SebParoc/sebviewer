@@ -24,6 +24,7 @@ class RemoteClient(
         fun onSize(width: Int, height: Int)
         fun onFrame(bitmap: Bitmap, bytes: Int)
         fun onPong(sentAt: Long)
+        fun onClipboard(text: String)
         fun onError(message: String)
         fun onClosed()
     }
@@ -61,6 +62,7 @@ class RemoteClient(
                         "size" -> listener.onSize(m.getInt("w"), m.getInt("h"))
                         "err" -> listener.onError(m.optString("msg", "error"))
                         "pong" -> listener.onPong(m.optLong("ts"))
+                        "clip" -> listener.onClipboard(m.optString("s"))
                     }
                 } catch (e: Exception) {
                     Log.w(TAG, "bad message", e)

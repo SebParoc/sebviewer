@@ -1,5 +1,7 @@
 package com.sebparoc.sebviewer
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.graphics.Bitmap
 import android.os.Bundle
@@ -54,6 +56,8 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
     private var latencyMs = -1L
     private var pillPinned = false
     private var lastBack = 0L
+    private var lastClipSent: String? = null
+    private var lastClipReceived: String? = null
     private lateinit var overlay: View
     private lateinit var overlayText: TextView
     private val pingTick = object : Runnable {
@@ -209,6 +213,7 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
             menu.setOnMenuItemClickListener { tapKey("F${it.itemId}"); true }
             menu.show()
         }
+        findViewById<Button>(R.id.btnPaste).setOnClickListener { pasteFromPhone(); haptic(it) }
         findViewById<Button>(R.id.btnFit).setOnClickListener { screen.fitToView(); haptic(it) }
         findViewById<Button>(R.id.btnQuality).setOnClickListener { showQualityDialog() }
         findViewById<Button>(R.id.btnDisconnect).setOnClickListener { finish() }
@@ -293,6 +298,59 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
             return true
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    // ----------------------------------------------------------- clipboard
+    private fun phoneClipText(): String? {
+        val cm = getSystemService(ClipboardManager::class.java)
+        val item = cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0) ?: return null
+        return item.coerceToText(this)?.toString()?.takeIf { it.isNotEmpty() }
+    }
+
+    /** Send the phone clipboard to the PC clipboard (no keystrokes). */
+    private fun syncClipboardToPc(): Boolean {
+        val text = phoneClipText() ?: return false
+        if (text == lastClipSent || text == lastClipReceived) return true
+        lastClipSent = text
+        send(JSONObject().put("t", "clip").put("s", text))
+        return true
+    }
+
+    /** Paste button: phone clipboard -> PC clipboard, then Ctrl+V on the PC. */
+    private fun pasteFromPhone() {
+        val text = phoneClipText()
+        if (text == null) {
+            Toast.makeText(this, R.string.clip_empty, Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (text != lastClipSent) {
+            lastClipSent = text
+            send(JSONObject().put("t", "clip").put("s", text))
+        }
+        releaseModifiers()
+        send(JSONObject().put("t", "key").put("k", "Control_L").put("d", true))
+        send(JSONObject().put("t", "key").put("k", "v"))
+        send(JSONObject().put("t", "key").put("k", "Control_L").put("d", false))
+        setStatus(getString(R.string.clip_pasted, text.take(24).replace('\n', ' ')), R.color.online, autoHide = true)
+    }
+
+    /** Android only lets the focused app read the clipboard, so sync on focus gain. */
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && everConnected) {
+            // clipboard access is granted a moment after focus, hence the small delay
+            main.postDelayed({ if (syncClipboardToPc() && phoneClipText() != lastClipReceived)
+                setStatus(getString(R.string.clip_synced), R.color.online, autoHide = true) }, 300)
+        }
+    }
+
+    override fun onClipboard(text: String) {
+        main.post {
+            lastClipReceived = text
+            val cm = getSystemService(ClipboardManager::class.java)
+            cm.setPrimaryClip(ClipData.newPlainText("SebViewer", text))
+            setStatus(getString(R.string.clip_copied, text.take(24).replace('\n', ' ')), R.color.online, autoHide = true)
+        }
     }
 
     // ------------------------------------------------------------- quality

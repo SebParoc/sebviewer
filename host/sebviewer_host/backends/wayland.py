@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 import threading
 from typing import Optional
 
@@ -36,6 +37,9 @@ IFACE_REMOTE = "org.freedesktop.portal.RemoteDesktop"
 IFACE_SCREENCAST = "org.freedesktop.portal.ScreenCast"
 IFACE_REQUEST = "org.freedesktop.portal.Request"
 IFACE_SESSION = "org.freedesktop.portal.Session"
+IFACE_CLIPBOARD = "org.freedesktop.portal.Clipboard"
+TEXT_MIMES = ["text/plain;charset=utf-8", "text/plain", "UTF8_STRING", "TEXT", "STRING"]
+MAX_CLIP = 1 << 20
 
 DEVICE_KEYBOARD = 1
 DEVICE_POINTER = 2
@@ -65,6 +69,9 @@ class WaylandPortalBackend(Backend):
         self._last_image: Optional[Image.Image] = None
         self._pressed_keys: set[int] = set()
         self._pressed_buttons: set[int] = set()
+        self.clipboard_enabled = False
+        self._clip_text = b""
+        self._clip_read_lock = threading.Lock()
 
     # ------------------------------------------------------------------ portal
     def _token(self) -> str:
@@ -129,10 +136,19 @@ class WaylandPortalBackend(Backend):
             "cursor_mode": GLib.Variant("u", CURSOR_EMBEDDED),
         })
 
+        try:
+            self.bus.call_sync(PORTAL_BUS, PORTAL_PATH, IFACE_CLIPBOARD, "RequestClipboard",
+                               GLib.Variant("(oa{sv})", [self.session, {}]), None,
+                               Gio.DBusCallFlags.NONE, 2000, None)
+        except GLib.Error as exc:
+            log.info("clipboard portal not available: %s", exc.message)
+
         if not restore_token:
             log.warning("A system dialog is asking which screen to share. "
                         "Pick your monitor and press Share (only needed once).")
         res = self._request(IFACE_REMOTE, "Start", [session_v, GLib.Variant("s", "")], {})
+        log.debug("Start results: %s", {k: v for k, v in res.items() if k != "streams"})
+        self.clipboard_enabled = bool(res.get("clipboard_enabled", False))
         streams = res.get("streams") or []
         if not streams:
             raise PortalError("no screen was shared")
@@ -156,13 +172,112 @@ class WaylandPortalBackend(Backend):
         self._start_pipeline(fd)
         self._alive = True
 
-        # keep a main loop running for the session Closed signal
+        # keep a main loop running for the session Closed signal and clipboard events
         self.bus.signal_subscribe(PORTAL_BUS, IFACE_SESSION, "Closed", self.session, None,
                                   Gio.DBusSignalFlags.NONE, self._on_closed)
+        if self.clipboard_enabled:
+            # Directed portal signals are not reliably matched by path/member filters,
+            # so subscribe unfiltered on our own connection and dispatch by name.
+            self.bus.signal_subscribe(None, IFACE_CLIPBOARD, None, None, None,
+                                      Gio.DBusSignalFlags.NONE, self._on_clip_signal)
+
         self._loop = GLib.MainLoop()
         self._loop_thread = threading.Thread(target=self._loop.run, name="glib-loop", daemon=True)
         self._loop_thread.start()
-        log.info("Wayland portal session started, stream %sx%s", self.width, self.height)
+        log.info("Wayland portal session started, stream %sx%s, clipboard %s",
+                 self.width, self.height, "on" if self.clipboard_enabled else "off")
+
+    # -------------------------------------------------------------- clipboard
+    def set_clipboard(self, text: str) -> None:
+        if not self.clipboard_enabled:
+            return
+        self._clip_text = text.encode("utf-8")[:MAX_CLIP]
+        opts = {"mime_types": GLib.Variant("as", TEXT_MIMES)}
+        self.bus.call_sync(PORTAL_BUS, PORTAL_PATH, IFACE_CLIPBOARD, "SetSelection",
+                           GLib.Variant("(oa{sv})", [self.session, opts]), None,
+                           Gio.DBusCallFlags.NONE, 2000, None)
+
+    def _on_clip_signal(self, _c, _sender, _path, _iface, signal, params) -> None:
+        if signal == "SelectionTransfer":
+            self._on_selection_transfer(params)
+        elif signal == "SelectionOwnerChanged":
+            self._on_owner_changed(params)
+
+    def _on_selection_transfer(self, params) -> None:
+        """An app on the PC is pasting: hand over our text."""
+        session, _mime, serial = params.unpack()
+        if session != self.session:
+            return
+        ok = False
+        try:
+            reply, fdlist = self.bus.call_with_unix_fd_list_sync(
+                PORTAL_BUS, PORTAL_PATH, IFACE_CLIPBOARD, "SelectionWrite",
+                GLib.Variant("(ou)", [self.session, serial]), GLib.VariantType("(h)"),
+                Gio.DBusCallFlags.NONE, 2000, None, None)
+            fd = fdlist.get(reply.unpack()[0])
+            try:
+                os.write(fd, self._clip_text)
+            finally:
+                os.close(fd)
+            ok = True
+        except (GLib.Error, OSError) as exc:
+            log.warning("clipboard write failed: %s", exc)
+        try:
+            self.bus.call_sync(PORTAL_BUS, PORTAL_PATH, IFACE_CLIPBOARD, "SelectionWriteDone",
+                               GLib.Variant("(oub)", [self.session, serial, ok]), None,
+                               Gio.DBusCallFlags.NONE, 2000, None)
+        except GLib.Error as exc:
+            log.debug("SelectionWriteDone: %s", exc.message)
+
+    def _on_owner_changed(self, params) -> None:
+        """Something was copied on the PC: read it and hand it to the phone."""
+        session, opts = params.unpack()
+        log.debug("OwnerChanged session=%s ours=%s opts=%s", session, session == self.session, opts)
+        if session != self.session or opts.get("session_is_owner") or self.on_clipboard is None:
+            return
+        raw = opts.get("mime_types")
+        while isinstance(raw, tuple) and len(raw) == 1:  # portal double-wraps the list
+            raw = raw[0]
+        mimes = list(raw) if raw else []
+        mime = next((m for m in TEXT_MIMES if m in mimes), None)
+        if mime is None:
+            return
+        # Serialize reads and let wl-copy's data pipe settle; retry once if empty.
+        threading.Thread(target=self._read_clipboard, args=(mime, 2), daemon=True).start()
+
+    def _read_clipboard(self, mime: str, attempts: int = 1) -> None:
+        with self._clip_read_lock:
+            for attempt in range(attempts):
+                if attempt:
+                    time.sleep(0.12)  # give the new owner time to serve its data
+                text = self._read_selection_once(mime)
+                if text:
+                    if self.on_clipboard is not None and text != self._clip_text.decode("utf-8", "replace"):
+                        self.on_clipboard(text)
+                    return
+
+    def _read_selection_once(self, mime: str) -> str:
+        try:
+            reply, fdlist = self.bus.call_with_unix_fd_list_sync(
+                PORTAL_BUS, PORTAL_PATH, IFACE_CLIPBOARD, "SelectionRead",
+                GLib.Variant("(os)", [self.session, mime]), GLib.VariantType("(h)"),
+                Gio.DBusCallFlags.NONE, 2000, None, None)
+            fd = fdlist.get(reply.unpack()[0])
+            chunks = []
+            size = 0
+            with os.fdopen(fd, "rb") as fh:
+                while size < MAX_CLIP:
+                    chunk = fh.read(65536)
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                    size += len(chunk)
+            text = b"".join(chunks).decode("utf-8", "replace")
+            log.debug("clipboard read %d bytes", len(text))
+            return text
+        except (GLib.Error, OSError) as exc:
+            log.warning("clipboard read failed: %s", exc)
+            return ""
 
     def _on_closed(self, *_args) -> None:
         log.warning("Screen sharing session was closed by the desktop")

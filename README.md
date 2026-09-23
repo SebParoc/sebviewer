@@ -77,6 +77,8 @@ The round button in the corner opens the control panel:
 - **Ctrl / Alt / Shift / Win** are sticky: tap one, then the next key or click gets the modifier.
 - Arrows, Esc, Tab, Enter, Backspace, Del, Home/End, PgUp/PgDn, F1-F12, volume and play/pause.
 - **Quality** picks resolution / frame rate presets (use *Data saver* over mobile data).
+- **Paste** sends your phone's clipboard to the PC and presses Ctrl+V. Copying on the PC also
+  puts the text on your phone's clipboard automatically, and vice versa when you return to the app.
 - **Fit** resets the zoom. **Disconnect** ends the session.
 
 The home screen lists PCs found on the Wi-Fi and PCs you connected to before, with a live
@@ -99,6 +101,8 @@ sebviewer-host --fps 30 --quality 70 --max-width 1920
 Config lives in `~/.config/sebviewer/config.json` (PIN and the Wayland restore token).
 With `--require-pin`, five wrong PINs in a row lock that address out for 30 seconds. Without it,
 anyone who can reach the port controls the PC, so keep the host on a trusted LAN or Tailscale only.
+
+Clipboard sync needs the desktop's Clipboard portal (GNOME 46+, recent KDE). Text only.
 
 ### Requirements (host)
 

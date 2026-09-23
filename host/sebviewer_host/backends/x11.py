@@ -105,3 +105,13 @@ class X11Backend(Backend):
 
     def type_text(self, text: str) -> None:
         self._kb.type(text)
+
+    def set_clipboard(self, text: str) -> None:
+        import shutil
+        import subprocess
+
+        for cmd in (["xclip", "-selection", "clipboard"], ["xsel", "--clipboard", "--input"]):
+            if shutil.which(cmd[0]):
+                subprocess.run(cmd, input=text.encode(), check=False, timeout=5)
+                return
+        log.warning("no xclip/xsel installed, cannot set the clipboard")

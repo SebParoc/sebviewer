@@ -45,4 +45,9 @@
     <string name="cd_status">Connection status</string>
     <string name="connecting_to">Connecting to %1$s…</string>
     <string name="back_again">Press back again to disconnect</string>
+    <string name="paste">Paste</string>
+    <string name="clip_empty">Nothing to paste: the phone clipboard is empty</string>
+    <string name="clip_pasted">Pasted on PC: %1$s</string>
+    <string name="clip_synced">Phone clipboard sent to PC (Ctrl+V to paste)</string>
+    <string name="clip_copied">Copied from PC: %1$s</string>
 </resources>

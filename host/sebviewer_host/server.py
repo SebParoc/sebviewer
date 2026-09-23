@@ -12,7 +12,9 @@ Protocol (JSON text frames unless noted):
     {"t":"text","s":"hello"}
     {"t":"cfg","fps":20,"q":60,"w":1280}
     {"t":"ping","ts":123}                    answered with {"t":"pong","ts":123}
+    {"t":"clip","s":"text"}                  put text on the PC clipboard
   host -> client
+    {"t":"clip","s":"text"}                  something was copied on the PC
     {"t":"hello","w":W,"h":H,"name":"host","version":"x"}
     {"t":"err","msg":"..."}
     {"t":"size","w":W,"h":H}
@@ -77,6 +79,7 @@ class Server:
         self.frame: bytes = b""
         self.frame_size = (0, 0)
         self.cond: asyncio.Condition | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
         self.capture_task: asyncio.Task | None = None
         self._failures: dict[str, list[float]] = {}
         self._backend_lock = asyncio.Lock()
@@ -94,6 +97,8 @@ class Server:
         except ImportError:  # websockets < 13
             from websockets import serve  # type: ignore
         self.cond = asyncio.Condition()
+        self._loop = asyncio.get_running_loop()
+        self.backend.on_clipboard = self._clipboard_from_pc
         async with serve(self._handle, self.host, self.port, compression=None,
                          max_size=1 << 20, ping_interval=20, ping_timeout=20):
             log.info("Listening on %s:%s", self.host, self.port)
@@ -111,6 +116,22 @@ class Server:
         except Exception:  # noqa: BLE001
             pass
         self.backend.start()
+
+    # ------------------------------------------------------------- clipboard
+    def _clipboard_from_pc(self, text: str) -> None:
+        """Called from a backend thread when the PC clipboard changes."""
+        if self._loop is None or not self.clients:
+            return
+        msg = json.dumps({"t": "clip", "s": text})
+
+        async def broadcast() -> None:
+            for c in list(self.clients.values()):
+                try:
+                    await c.ws.send(msg)
+                except Exception:  # noqa: BLE001
+                    pass
+
+        self._loop.call_soon_threadsafe(lambda: asyncio.ensure_future(broadcast()))
 
     # --------------------------------------------------------------- capture
     async def _capture_loop(self) -> None:
@@ -298,6 +319,10 @@ class Server:
             client.ack_event.set()
         elif t == "ping":
             client.pong = json.dumps({"t": "pong", "ts": msg.get("ts")})
+        elif t == "clip":
+            text = str(msg.get("s", ""))
+            if text:
+                self._safe(b.set_clipboard, text)
         elif t == "move":
             p = self._px(msg)
             if p:

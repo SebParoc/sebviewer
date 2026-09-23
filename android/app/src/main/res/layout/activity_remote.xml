@@ -92,6 +92,7 @@
                 <Button android:id="@+id/btnKeyboard" style="@style/Key.Mode" android:text="@string/keyboard" app:icon="@drawable/ic_keyboard" />
                 <Button android:id="@+id/btnTrackpad" style="@style/Key.Mode" android:text="@string/trackpad_mode" app:icon="@drawable/ic_trackpad" />
                 <Button android:id="@+id/btnDrag" style="@style/Key.Mode" android:text="@string/drag_mode" app:icon="@drawable/ic_drag" />
+                <Button android:id="@+id/btnPaste" style="@style/Key" android:layout_height="44dp" android:text="@string/paste" app:icon="@drawable/ic_paste" />
                 <Button android:id="@+id/btnFit" style="@style/Key" android:layout_height="44dp" android:text="@string/fit_screen" app:icon="@drawable/ic_fit" />
                 <Button android:id="@+id/btnQuality" style="@style/Key" android:layout_height="44dp" android:text="@string/quality" app:icon="@drawable/ic_tune" />
                 <Button android:id="@+id/btnDisconnect" style="@style/Key.Danger" android:text="@string/disconnect" app:icon="@drawable/ic_close" />
