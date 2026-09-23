@@ -20,7 +20,7 @@ The first start on Wayland pops up the desktop's "share your screen" dialog. Pic
 press *Share*, and it is remembered for next time. The host then prints something like:
 
 ```
-  PIN : 483920
+  PIN : not required (run with --require-pin to enable)
   Port: 7788
   Addresses:
     192.168.1.79     (wlp87s0f0)
@@ -32,7 +32,7 @@ press *Share*, and it is remembered for next time. The host then prints somethin
 1. Install the APK from the [releases page](https://github.com/SebParoc/sebviewer/releases/latest)
    (Android asks once to allow installs from your browser / GitHub app).
 2. Open SebViewer. PCs on the same Wi-Fi show up automatically; tap one, or type an address.
-3. Enter the PIN and connect.
+3. Tap connect. If you started the host with `--require-pin`, enter the PIN it printed.
 
 ### From anywhere, not just the same Wi-Fi
 
@@ -84,14 +84,16 @@ Bluetooth/USB keyboards attached to the phone also work, including Ctrl/Alt shor
 ```
 sebviewer-host --help
 sebviewer-host --install-service     # start automatically at login (systemd user unit)
-sebviewer-host --new-pin             # rotate the PIN
+sebviewer-host --require-pin         # ask the phone for a PIN (off by default)
+sebviewer-host --show-pin            # print the PIN, --new-pin rotates it
 sebviewer-host --reset-permissions   # ask the Wayland screen-share question again
 sebviewer-host --backend x11         # force the X11 backend
 sebviewer-host --fps 30 --quality 70 --max-width 1920
 ```
 
 Config lives in `~/.config/sebviewer/config.json` (PIN and the Wayland restore token).
-A wrong PIN five times in a row locks that address out for 30 seconds.
+With `--require-pin`, five wrong PINs in a row lock that address out for 30 seconds. Without it,
+anyone who can reach the port controls the PC, so keep the host on a trusted LAN or Tailscale only.
 
 ### Requirements (host)
 

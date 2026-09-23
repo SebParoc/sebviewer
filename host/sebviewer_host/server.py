@@ -63,9 +63,10 @@ class Client:
 
 
 class Server:
-    def __init__(self, backend: Backend, pin: str, host: str, port: int, settings: StreamSettings):
+    def __init__(self, backend: Backend, pin: str | None, host: str, port: int,
+                 settings: StreamSettings):
         self.backend = backend
-        self.pin = pin
+        self.pin = pin  # None: accept every client without a PIN
         self.host = host
         self.port = port
         self.settings = settings
@@ -172,11 +173,14 @@ class Server:
         except Exception:  # noqa: BLE001
             await ws.close()
             return
-        if self._locked_out(ip):
+        if msg.get("t") != "auth":
+            await ws.close()
+            return
+        if self.pin is not None and self._locked_out(ip):
             await ws.send(json.dumps({"t": "err", "msg": "too many attempts, wait 30 s"}))
             await ws.close()
             return
-        if msg.get("t") != "auth" or not hmac.compare_digest(str(msg.get("pin", "")), self.pin):
+        if self.pin is not None and not hmac.compare_digest(str(msg.get("pin", "")), self.pin):
             self._failures.setdefault(ip, []).append(time.monotonic())
             log.warning("Rejected connection from %s (bad PIN)", ip)
             await ws.send(json.dumps({"t": "err", "msg": "wrong PIN"}))

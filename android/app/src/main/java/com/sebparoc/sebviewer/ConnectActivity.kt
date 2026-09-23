@@ -75,7 +75,7 @@ class ConnectActivity : AppCompatActivity() {
     private fun onSavedPicked(h: SavedHost) {
         hostInput.setText(h.address)
         portInput.setText(h.port.toString())
-        if (pinInput.text.isNullOrBlank()) pinInput.requestFocus() else connect()
+        connect()
     }
 
     private fun onSavedLongPressed(h: SavedHost) {
@@ -102,7 +102,6 @@ class ConnectActivity : AppCompatActivity() {
         val port = portInput.text?.toString()?.trim()?.toIntOrNull() ?: 7788
         val pin = pinInput.text?.toString()?.trim().orEmpty()
         if (host.isEmpty()) { status.text = getString(R.string.error_empty_host); return }
-        if (pin.isEmpty()) { status.text = getString(R.string.error_empty_pin); return }
         prefs.host = host
         prefs.port = port
         prefs.pin = pin

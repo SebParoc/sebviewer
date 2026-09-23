@@ -5,7 +5,7 @@
     <string name="no_hosts_yet">Searching this Wi-Fi… start sebviewer-host on your PC, or type an address below.</string>
     <string name="host_hint">Host address (IP or name)</string>
     <string name="port_hint">Port</string>
-    <string name="pin_hint">PIN shown by sebviewer-host</string>
+    <string name="pin_hint">PIN (only if the host asks for one)</string>
     <string name="connect">Connect</string>
     <string name="connecting">Connecting…</string>
     <string name="disconnect">Disconnect</string>
