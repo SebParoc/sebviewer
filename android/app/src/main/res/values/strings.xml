@@ -1,25 +1,46 @@
 <resources>
     <string name="app_name">SebViewer</string>
-    <string name="title_connect">Connect to a PC</string>
-    <string name="hosts_on_network">PCs on this network</string>
-    <string name="no_hosts_yet">Searching this Wi-Fi… start sebviewer-host on your PC, or type an address below.</string>
-    <string name="host_hint">Host address (IP or name)</string>
+    <string name="tagline">Your PC, in your pocket</string>
+    <string name="your_pcs">Your PCs</string>
+    <string name="searching">Looking for PCs on this Wi-Fi…</string>
+    <string name="empty_title">No PCs yet</string>
+    <string name="empty_body">Run <b>sebviewer-host</b> on your PC. On the same Wi-Fi it shows up here by itself; from elsewhere add its Tailscale address below.</string>
+    <string name="on_this_wifi">On this Wi-Fi</string>
+    <string name="saved">Saved</string>
+    <string name="online">Online</string>
+    <string name="offline">Unreachable</string>
+    <string name="checking">Checking…</string>
+    <string name="add_manually">Add a PC by address</string>
+    <string name="host_hint">Address (IP or Tailscale name)</string>
     <string name="port_hint">Port</string>
-    <string name="pin_hint">PIN (only if the host asks for one)</string>
+    <string name="pin_hint">PIN (only if the host asks)</string>
     <string name="connect">Connect</string>
     <string name="connecting">Connecting…</string>
     <string name="disconnect">Disconnect</string>
     <string name="keyboard">Keyboard</string>
-    <string name="help_gestures">Tap: click · Long press: right click · 1 finger drag: move pointer · 2 fingers drag: scroll · Pinch: zoom · 3 fingers drag: pan · 2-finger tap: right click</string>
     <string name="drag_mode">Drag</string>
     <string name="trackpad_mode">Trackpad</string>
     <string name="quality">Quality</string>
     <string name="fit_screen">Fit</string>
-    <string name="error_empty_host">Enter the host address</string>
-    <string name="error_empty_pin">Enter the PIN</string>
-    <string name="saved_pcs">Saved PCs (long press to forget)</string>
+    <string name="error_empty_host">Enter the address first</string>
     <string name="forget_host">Forget %1$s (%2$s)?</string>
     <string name="forget">Forget</string>
     <string name="reconnecting">Connection lost, reconnecting (%1$d/%2$d)…</string>
-    <string name="remote_hint">Away from home? Install the Tailscale app on the phone, sign in with the same account as the PC, and type the PC\'s Tailscale name or 100.x address here.</string>
+    <string name="remote_hint">Away from home? Install Tailscale on the phone, sign in with the PC\'s account, and add the PC\'s Tailscale name or 100.x address.</string>
+    <string name="gestures_title">Gestures</string>
+    <string name="gestures_body">
+        <b>Tap</b> click · <b>Tap twice</b> double click\n
+        <b>Long press</b> or <b>two-finger tap</b> right click\n
+        <b>One finger</b> move the pointer\n
+        <b>Two fingers</b> scroll · <b>Pinch</b> zoom · <b>Three fingers</b> pan\n
+        <b>Drag mode</b> a one-finger drag holds the button\n
+        <b>Trackpad mode</b> move the pointer like on a laptop
+    </string>
+    <string name="got_it">Got it</string>
+    <string name="help_gestures">Tap: click · Long press: right click · 1 finger: move pointer · 2 fingers: scroll · Pinch: zoom · 3 fingers: pan</string>
+    <string name="quality_smooth">Smooth · 1280 px, 25 fps</string>
+    <string name="quality_balanced">Balanced · 1280 px, 20 fps</string>
+    <string name="quality_sharp">Sharp · 1920 px, 15 fps</string>
+    <string name="quality_saver">Data saver · 960 px, 10 fps</string>
+    <string name="cd_status">Connection status</string>
 </resources>

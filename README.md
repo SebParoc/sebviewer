@@ -67,15 +67,20 @@ WebSocket, which is fine on a LAN or VPN but not on the open internet.
 | Pinch | Zoom in/out |
 | Three-finger drag | Pan while zoomed |
 
-The round button in the corner opens the toolbar:
+The round button in the corner opens the control panel:
 
-- **⌨** shows the phone keyboard; everything you type goes to the PC.
+- **Keyboard** shows the phone keyboard (Gboard glide typing, voice input and autocorrect all
+  work); everything you type goes to the PC. The screen shrinks to stay visible above it.
+- **Trackpad** moves the pointer relative to your finger, like a laptop touchpad; a blue ring
+  shows where the pointer is.
 - **Drag** makes a one-finger drag hold the left button (move windows, select text).
-- **Trackpad** moves the pointer relative to your finger, like a laptop touchpad.
 - **Ctrl / Alt / Shift / Win** are sticky: tap one, then the next key or click gets the modifier.
 - Arrows, Esc, Tab, Enter, Backspace, Del, Home/End, PgUp/PgDn, F1-F12, volume and play/pause.
 - **Quality** picks resolution / frame rate presets (use *Data saver* over mobile data).
-- **Fit** resets the zoom.
+- **Fit** resets the zoom. **Disconnect** ends the session.
+
+The home screen lists PCs found on the Wi-Fi and PCs you connected to before, with a live
+online/offline check; tap one to connect, long press to forget it.
 
 Bluetooth/USB keyboards attached to the phone also work, including Ctrl/Alt shortcuts.
 

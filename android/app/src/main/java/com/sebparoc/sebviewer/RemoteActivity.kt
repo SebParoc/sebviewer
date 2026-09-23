@@ -5,11 +5,14 @@ import android.graphics.Bitmap
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.Html
+import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
+import android.widget.ImageView
 import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
@@ -19,14 +22,20 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.widget.ImageViewCompat
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import org.json.JSONObject
 
 class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenView.InputListener {
+    private lateinit var root: View
     private lateinit var screen: RemoteScreenView
     private lateinit var keyInput: KeyboardInputView
-    private lateinit var status: TextView
-    private lateinit var toolbar: View
+    private lateinit var statusPill: View
+    private lateinit var statusText: TextView
+    private lateinit var statusDot: ImageView
+    private lateinit var panel: View
+    private lateinit var panelToggle: FloatingActionButton
     private lateinit var prefs: Prefs
     private var client: RemoteClient? = null
     private var host = ""
@@ -40,7 +49,8 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
     private var remoteH = 0
     private var frames = 0
     private var fps = 0
-    private val activeModifiers = LinkedHashMap<String, Button>()
+    private val modifierButtons = LinkedHashMap<String, MaterialButton>()
+    private val hidePill = Runnable { statusPill.animate().alpha(0f).setDuration(300).start() }
 
     private val statsTick = object : Runnable {
         override fun run() {
@@ -56,31 +66,54 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
         setContentView(R.layout.activity_remote)
         prefs = Prefs(this)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        WindowCompat.setDecorFitsSystemWindows(window, true)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
 
+        root = findViewById(R.id.root)
         screen = findViewById(R.id.screen)
         keyInput = findViewById(R.id.keyInput)
-        status = findViewById(R.id.statusOverlay)
-        toolbar = findViewById(R.id.toolbar)
+        statusPill = findViewById(R.id.statusPill)
+        statusText = findViewById(R.id.statusText)
+        statusDot = findViewById(R.id.statusDot)
+        panel = findViewById(R.id.panel)
+        panelToggle = findViewById(R.id.panelToggle)
         screen.inputListener = this
         keyInput.onText = { sendText(it) }
         keyInput.onKey = { tapKey(it) }
 
-        findViewById<FloatingActionButton>(R.id.toolbarToggle).setOnClickListener {
-            toolbar.visibility = if (toolbar.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+        // Keep everything above the soft keyboard: the screen view shrinks and re-fits.
+        ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            val cutout = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
+            v.setPadding(cutout.left, cutout.top, cutout.right, ime)
+            insets
         }
-        wireToolbar()
+
+        panelToggle.setOnClickListener { togglePanel() }
+        wirePanel()
 
         host = intent.getStringExtra(EXTRA_HOST) ?: ""
         port = intent.getIntExtra(EXTRA_PORT, 7788)
         pin = intent.getStringExtra(EXTRA_PIN) ?: ""
-        status.text = getString(R.string.connecting)
+        setStatus(getString(R.string.connecting), R.color.unknown, autoHide = false)
         connect()
         main.postDelayed(statsTick, 1000)
+
+        if (!prefs.guideShown) {
+            val guide = findViewById<View>(R.id.guide)
+            (guide.findViewById<View>(R.id.guideOk).parent as android.view.ViewGroup).let { card ->
+                (card.getChildAt(1) as TextView).text =
+                    Html.fromHtml(getString(R.string.gestures_body), Html.FROM_HTML_MODE_COMPACT)
+            }
+            guide.visibility = View.VISIBLE
+            guide.findViewById<View>(R.id.guideOk).setOnClickListener {
+                prefs.guideShown = true
+                guide.animate().alpha(0f).setDuration(200).withEndAction { guide.visibility = View.GONE }.start()
+            }
+        }
     }
 
     private fun connect() {
@@ -88,26 +121,39 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
         client = RemoteClient(host, port, pin, this).also { it.connect() }
     }
 
-    private fun wireToolbar() {
-        fun key(id: Int, name: String) = findViewById<Button>(id).setOnClickListener { tapKey(name) }
+    // --------------------------------------------------------------- panel
+    private fun togglePanel() {
+        val show = panel.visibility != View.VISIBLE
+        if (show) {
+            panel.visibility = View.VISIBLE
+            panel.alpha = 0f; panel.translationY = 40f
+            panel.animate().alpha(1f).translationY(0f).setDuration(160).start()
+            panelToggle.setImageResource(R.drawable.ic_close)
+            showPill()
+        } else {
+            panel.animate().alpha(0f).translationY(40f).setDuration(120)
+                .withEndAction { panel.visibility = View.GONE }.start()
+            panelToggle.setImageResource(R.drawable.ic_keyboard)
+        }
+    }
+
+    private fun wirePanel() {
+        fun key(id: Int, name: String) = findViewById<Button>(id).setOnClickListener { tapKey(name); haptic(it) }
         fun modifier(id: Int, name: String) {
-            val b = findViewById<Button>(id)
-            b.alpha = 0.6f
-            b.setOnClickListener { toggleModifier(name, b) }
+            val b = findViewById<MaterialButton>(id)
+            b.addOnCheckedChangeListener { _, checked ->
+                send(JSONObject().put("t", "key").put("k", name).put("d", checked))
+                if (checked) modifierButtons[name] = b else modifierButtons.remove(name)
+            }
         }
-        findViewById<Button>(R.id.btnKeyboard).setOnClickListener { toggleKeyboard() }
-        val drag = findViewById<Button>(R.id.btnDrag)
-        drag.setOnClickListener {
-            screen.dragMode = !screen.dragMode
-            drag.alpha = if (screen.dragMode) 1f else 0.6f
+        val kb = findViewById<MaterialButton>(R.id.btnKeyboard)
+        kb.addOnCheckedChangeListener { _, checked -> showKeyboard(checked) }
+        findViewById<MaterialButton>(R.id.btnTrackpad).addOnCheckedChangeListener { _, checked ->
+            screen.setTrackpad(checked)
         }
-        drag.alpha = 0.6f
-        val trackpad = findViewById<Button>(R.id.btnTrackpad)
-        trackpad.setOnClickListener {
-            screen.trackpadMode = !screen.trackpadMode
-            trackpad.alpha = if (screen.trackpadMode) 1f else 0.6f
+        findViewById<MaterialButton>(R.id.btnDrag).addOnCheckedChangeListener { _, checked ->
+            screen.dragMode = checked
         }
-        trackpad.alpha = 0.6f
         modifier(R.id.btnCtrl, "Control_L")
         modifier(R.id.btnAlt, "Alt_L")
         modifier(R.id.btnShift, "Shift_L")
@@ -134,42 +180,37 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
             menu.setOnMenuItemClickListener { tapKey("F${it.itemId}"); true }
             menu.show()
         }
-        findViewById<Button>(R.id.btnFit).setOnClickListener { screen.fitToView() }
+        findViewById<Button>(R.id.btnFit).setOnClickListener { screen.fitToView(); haptic(it) }
         findViewById<Button>(R.id.btnQuality).setOnClickListener { showQualityDialog() }
         findViewById<Button>(R.id.btnDisconnect).setOnClickListener { finish() }
-    }
 
-    // ------------------------------------------------------------ keyboard
-    private fun toggleKeyboard() {
-        val imm = getSystemService(InputMethodManager::class.java)
-        val shown = ViewCompat.getRootWindowInsets(keyInput)
-            ?.isVisible(WindowInsetsCompat.Type.ime()) == true
-        if (shown) {
-            imm.hideSoftInputFromWindow(keyInput.windowToken, 0)
-        } else {
-            keyInput.requestFocus()
-            imm.showSoftInput(keyInput, InputMethodManager.SHOW_IMPLICIT)
+        // keep the keyboard button in sync when the IME is dismissed with the back gesture
+        ViewCompat.setOnApplyWindowInsetsListener(keyInput) { _, insets ->
+            val visible = insets.isVisible(WindowInsetsCompat.Type.ime())
+            if (kb.isChecked != visible) kb.isChecked = visible
+            insets
         }
     }
 
-    private fun toggleModifier(name: String, b: Button) {
-        if (activeModifiers.remove(name) != null) {
-            send(JSONObject().put("t", "key").put("k", name).put("d", false))
-            b.alpha = 0.6f
+    private fun haptic(v: View) {
+        v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+    }
+
+    // ------------------------------------------------------------ keyboard
+    private fun showKeyboard(show: Boolean) {
+        val imm = getSystemService(InputMethodManager::class.java)
+        if (show) {
+            keyInput.requestFocus()
+            imm.showSoftInput(keyInput, InputMethodManager.SHOW_IMPLICIT)
         } else {
-            activeModifiers[name] = b
-            send(JSONObject().put("t", "key").put("k", name).put("d", true))
-            b.alpha = 1f
+            imm.hideSoftInputFromWindow(keyInput.windowToken, 0)
         }
     }
 
     private fun releaseModifiers() {
-        if (activeModifiers.isEmpty()) return
-        for ((name, b) in activeModifiers) {
-            send(JSONObject().put("t", "key").put("k", name).put("d", false))
-            b.alpha = 0.6f
-        }
-        activeModifiers.clear()
+        if (modifierButtons.isEmpty()) return
+        for (b in modifierButtons.values.toList()) b.isChecked = false // listener sends the release
+        modifierButtons.clear()
     }
 
     private fun tapKey(name: String) {
@@ -201,9 +242,8 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
                 return true
             }
             val ch = event.unicodeChar
-            val ctrl = event.isCtrlPressed || event.isAltPressed || event.isMetaPressed
-            if (ctrl && event.displayLabel != 0.toChar()) {
-                // send as key press so the held modifier applies (e.g. Ctrl+C)
+            val combo = event.isCtrlPressed || event.isAltPressed || event.isMetaPressed
+            if (combo && event.displayLabel != 0.toChar()) {
                 send(JSONObject().put("t", "key").put("k", event.displayLabel.lowercaseChar().toString()))
                 return true
             }
@@ -220,7 +260,10 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
 
     // ------------------------------------------------------------- quality
     private fun showQualityDialog() {
-        val labels = arrayOf("Smooth (720p, 25 fps)", "Balanced (1280px, 20 fps)", "Sharp (1920px, 15 fps)", "Data saver (960px, 10 fps)")
+        val labels = arrayOf(
+            getString(R.string.quality_smooth), getString(R.string.quality_balanced),
+            getString(R.string.quality_sharp), getString(R.string.quality_saver),
+        )
         AlertDialog.Builder(this)
             .setTitle(R.string.quality)
             .setSingleChoiceItems(labels, prefs.quality) { d, which ->
@@ -247,9 +290,22 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
         client?.send(obj)
     }
 
+    private fun setStatus(text: String, color: Int, autoHide: Boolean) {
+        statusText.text = text
+        ImageViewCompat.setImageTintList(statusDot, getColorStateList(color))
+        showPill()
+        if (!autoHide) main.removeCallbacks(hidePill)
+    }
+
+    private fun showPill() {
+        main.removeCallbacks(hidePill)
+        statusPill.animate().alpha(1f).setDuration(150).start()
+        main.postDelayed(hidePill, 4000)
+    }
+
     private fun updateStatus() {
-        if (remoteW == 0) return
-        status.text = "$hostName · ${remoteW}×$remoteH · $fps fps"
+        if (remoteW == 0 || !everConnected) return
+        statusText.text = "$hostName · ${remoteW}×$remoteH · $fps fps"
     }
 
     override fun onHello(width: Int, height: Int, name: String) {
@@ -259,10 +315,8 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
             everConnected = true
             reconnects = 0
             SavedHosts.remember(this, SavedHost(name, host, port))
-            status.visibility = View.VISIBLE
-            updateStatus()
+            setStatus("$hostName · ${remoteW}×$remoteH", R.color.online, autoHide = true)
             applyQuality(prefs.quality)
-            main.postDelayed({ status.visibility = View.GONE }, 4000)
         }
     }
 
@@ -278,7 +332,6 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
     }
 
     override fun onError(message: String) {
-        // Host-side rejections (wrong PIN etc.) are final; transport errors get retried.
         val fatal = message.contains("PIN", ignoreCase = true) || message.contains("attempts")
         main.post { if (fatal) fail(message) else lost(message) }
     }
@@ -295,8 +348,7 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
             return
         }
         reconnects++
-        status.visibility = View.VISIBLE
-        status.text = getString(R.string.reconnecting, reconnects, MAX_RECONNECTS)
+        setStatus(getString(R.string.reconnecting, reconnects, MAX_RECONNECTS), R.color.offline, autoHide = false)
         main.postDelayed({ if (!isFinishing) connect() }, 1500L * reconnects)
     }
 
@@ -329,6 +381,7 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
 
     override fun onDestroy() {
         main.removeCallbacks(statsTick)
+        main.removeCallbacks(hidePill)
         client?.close()
         client = null
         super.onDestroy()

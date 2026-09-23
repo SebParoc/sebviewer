@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@android:color/black">
@@ -16,72 +17,167 @@
         android:layout_height="1dp"
         android:layout_gravity="bottom|start" />
 
-    <TextView
-        android:id="@+id/statusOverlay"
+    <!-- status pill -->
+    <LinearLayout
+        android:id="@+id/statusPill"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|start"
-        android:layout_margin="8dp"
-        android:background="@color/toolbar_bg"
-        android:paddingHorizontal="8dp"
-        android:paddingVertical="4dp"
-        android:textColor="@android:color/white"
-        android:textSize="12sp" />
+        android:layout_margin="10dp"
+        android:background="@drawable/bg_pill"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="7dp">
 
+        <ImageView
+            android:id="@+id/statusDot"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:contentDescription="@string/cd_status"
+            android:src="@drawable/dot" />
+
+        <TextView
+            android:id="@+id/statusText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:textColor="@color/text"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- floating toggle -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/toolbarToggle"
+        android:id="@+id/panelToggle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
-        android:layout_margin="12dp"
-        android:alpha="0.85"
+        android:layout_margin="14dp"
         android:contentDescription="@string/keyboard"
-        app:fabSize="mini"
-        app:srcCompat="@drawable/ic_keyboard" />
+        app:backgroundTint="@color/brand"
+        app:fabSize="normal"
+        app:srcCompat="@drawable/ic_keyboard"
+        app:tint="@color/on_brand" />
 
-    <HorizontalScrollView
-        android:id="@+id/toolbar"
+    <!-- control panel -->
+    <LinearLayout
+        android:id="@+id/panel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:background="@color/toolbar_bg"
-        android:paddingVertical="6dp"
-        android:scrollbars="none"
+        android:background="@drawable/bg_panel"
+        android:orientation="vertical"
+        android:paddingTop="6dp"
+        android:paddingBottom="8dp"
+        android:visibility="gone">
+
+        <View
+            android:layout_width="36dp"
+            android:layout_height="4dp"
+            android:layout_gravity="center_horizontal"
+            android:background="@drawable/bg_handle" />
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingHorizontal="8dp">
+
+                <Button android:id="@+id/btnKeyboard" style="@style/Key.Mode" android:text="@string/keyboard" app:icon="@drawable/ic_keyboard" />
+                <Button android:id="@+id/btnTrackpad" style="@style/Key.Mode" android:text="@string/trackpad_mode" app:icon="@drawable/ic_trackpad" />
+                <Button android:id="@+id/btnDrag" style="@style/Key.Mode" android:text="@string/drag_mode" app:icon="@drawable/ic_drag" />
+                <Button android:id="@+id/btnFit" style="@style/Key" android:layout_height="44dp" android:text="@string/fit_screen" app:icon="@drawable/ic_fit" />
+                <Button android:id="@+id/btnQuality" style="@style/Key" android:layout_height="44dp" android:text="@string/quality" app:icon="@drawable/ic_tune" />
+                <Button android:id="@+id/btnDisconnect" style="@style/Key.Danger" android:text="@string/disconnect" app:icon="@drawable/ic_close" />
+            </LinearLayout>
+        </HorizontalScrollView>
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingHorizontal="8dp">
+
+                <Button android:id="@+id/btnCtrl" style="@style/Key.Modifier" android:text="Ctrl" />
+                <Button android:id="@+id/btnAlt" style="@style/Key.Modifier" android:text="Alt" />
+                <Button android:id="@+id/btnShift" style="@style/Key.Modifier" android:text="Shift" />
+                <Button android:id="@+id/btnSuper" style="@style/Key.Modifier" android:text="Win" />
+                <Button android:id="@+id/btnEsc" style="@style/Key" android:text="Esc" />
+                <Button android:id="@+id/btnTab" style="@style/Key" android:text="Tab" />
+                <Button android:id="@+id/btnEnter" style="@style/Key" android:text="Enter" />
+                <Button android:id="@+id/btnBackspace" style="@style/Key" android:text="⌫" />
+                <Button android:id="@+id/btnDelete" style="@style/Key" android:text="Del" />
+                <Button android:id="@+id/btnLeft" style="@style/Key" android:text="←" />
+                <Button android:id="@+id/btnUp" style="@style/Key" android:text="↑" />
+                <Button android:id="@+id/btnDown" style="@style/Key" android:text="↓" />
+                <Button android:id="@+id/btnRight" style="@style/Key" android:text="→" />
+                <Button android:id="@+id/btnHome" style="@style/Key" android:text="Home" />
+                <Button android:id="@+id/btnEnd" style="@style/Key" android:text="End" />
+                <Button android:id="@+id/btnPgUp" style="@style/Key" android:text="PgUp" />
+                <Button android:id="@+id/btnPgDn" style="@style/Key" android:text="PgDn" />
+                <Button android:id="@+id/btnF" style="@style/Key" android:text="F1–12" />
+                <Button android:id="@+id/btnVolDown" style="@style/Key" android:text="Vol−" />
+                <Button android:id="@+id/btnVolUp" style="@style/Key" android:text="Vol+" />
+                <Button android:id="@+id/btnPlay" style="@style/Key" android:text="⏯" />
+            </LinearLayout>
+        </HorizontalScrollView>
+    </LinearLayout>
+
+    <!-- first-run gesture guide -->
+    <FrameLayout
+        android:id="@+id/guide"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#B3000000"
+        android:clickable="true"
+        android:focusable="true"
         android:visibility="gone">
 
         <LinearLayout
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingHorizontal="6dp">
+            android:layout_gravity="center"
+            android:layout_margin="28dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="22dp">
 
-            <Button android:id="@+id/btnKeyboard" style="@style/ToolbarKey" android:text="⌨" />
-            <Button android:id="@+id/btnDrag" style="@style/ToolbarKey" android:text="@string/drag_mode" />
-            <Button android:id="@+id/btnTrackpad" style="@style/ToolbarKey" android:text="@string/trackpad_mode" />
-            <Button android:id="@+id/btnCtrl" style="@style/ToolbarKey" android:text="Ctrl" />
-            <Button android:id="@+id/btnAlt" style="@style/ToolbarKey" android:text="Alt" />
-            <Button android:id="@+id/btnShift" style="@style/ToolbarKey" android:text="Shift" />
-            <Button android:id="@+id/btnSuper" style="@style/ToolbarKey" android:text="Win" />
-            <Button android:id="@+id/btnEsc" style="@style/ToolbarKey" android:text="Esc" />
-            <Button android:id="@+id/btnTab" style="@style/ToolbarKey" android:text="Tab" />
-            <Button android:id="@+id/btnEnter" style="@style/ToolbarKey" android:text="Enter" />
-            <Button android:id="@+id/btnBackspace" style="@style/ToolbarKey" android:text="⌫" />
-            <Button android:id="@+id/btnDelete" style="@style/ToolbarKey" android:text="Del" />
-            <Button android:id="@+id/btnUp" style="@style/ToolbarKey" android:text="↑" />
-            <Button android:id="@+id/btnDown" style="@style/ToolbarKey" android:text="↓" />
-            <Button android:id="@+id/btnLeft" style="@style/ToolbarKey" android:text="←" />
-            <Button android:id="@+id/btnRight" style="@style/ToolbarKey" android:text="→" />
-            <Button android:id="@+id/btnHome" style="@style/ToolbarKey" android:text="Home" />
-            <Button android:id="@+id/btnEnd" style="@style/ToolbarKey" android:text="End" />
-            <Button android:id="@+id/btnPgUp" style="@style/ToolbarKey" android:text="PgUp" />
-            <Button android:id="@+id/btnPgDn" style="@style/ToolbarKey" android:text="PgDn" />
-            <Button android:id="@+id/btnF" style="@style/ToolbarKey" android:text="F1-12" />
-            <Button android:id="@+id/btnVolDown" style="@style/ToolbarKey" android:text="Vol−" />
-            <Button android:id="@+id/btnVolUp" style="@style/ToolbarKey" android:text="Vol+" />
-            <Button android:id="@+id/btnPlay" style="@style/ToolbarKey" android:text="⏯" />
-            <Button android:id="@+id/btnFit" style="@style/ToolbarKey" android:text="@string/fit_screen" />
-            <Button android:id="@+id/btnQuality" style="@style/ToolbarKey" android:text="@string/quality" />
-            <Button android:id="@+id/btnDisconnect" style="@style/ToolbarKey" android:text="@string/disconnect" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/gestures_title"
+                android:textColor="@color/text"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:lineSpacingExtra="6dp"
+                android:text="@string/gestures_body"
+                android:textColor="@color/text"
+                android:textSize="15sp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/guideOk"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="18dp"
+                android:text="@string/got_it"
+                app:cornerRadius="12dp" />
         </LinearLayout>
-    </HorizontalScrollView>
+    </FrameLayout>
 </FrameLayout>

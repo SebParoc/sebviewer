@@ -42,6 +42,12 @@ class RemoteScreenView @JvmOverloads constructor(
     private var bitmap: Bitmap? = null
     private val matrix = Matrix()
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val hintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 2f * resources.displayMetrics.density
+        color = 0xFF38BDF8.toInt()
+    }
+    private val hintFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x5538BDF8 }
     private var scale = 1f
     private var tx = 0f
     private var ty = 0f
@@ -113,6 +119,14 @@ class RemoteScreenView @JvmOverloads constructor(
         matrix.postScale(scale, scale)
         matrix.postTranslate(tx, ty)
         canvas.drawBitmap(bmp, matrix, paint)
+        if (trackpadMode) {
+            // show where the pointer is, since the finger is not on it
+            val px = tx + cursorX * bmpW * scale
+            val py = ty + cursorY * bmpH * scale
+            val r = 9f * density
+            canvas.drawCircle(px, py, r, hintFill)
+            canvas.drawCircle(px, py, r, hintPaint)
+        }
     }
 
     // ------------------------------------------------------------- mapping
@@ -222,6 +236,7 @@ class RemoteScreenView @JvmOverloads constructor(
                         cursorX = toNormX(e.x); cursorY = toNormY(e.y)
                     }
                     sendMove(cursorX, cursorY)
+                    if (trackpadMode) invalidate()
                 }
                 lastX = e.x; lastY = e.y
             }
@@ -277,6 +292,11 @@ class RemoteScreenView @JvmOverloads constructor(
         val (nx, ny) = targetFor(downX, downY)
         performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
         inputListener?.onClick(3, nx, ny)
+    }
+
+    fun setTrackpad(enabled: Boolean) {
+        trackpadMode = enabled
+        invalidate()
     }
 
     private fun span(e: MotionEvent): Float =

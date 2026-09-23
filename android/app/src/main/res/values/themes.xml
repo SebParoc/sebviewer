@@ -1,26 +1,60 @@
 <resources>
-    <style name="Theme.SebViewer" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/brand_dark</item>
+    <style name="Theme.SebViewer" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/brand</item>
+        <item name="colorOnPrimary">@color/on_brand</item>
         <item name="colorSecondary">@color/brand</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorSurfaceVariant">@color/surface_high</item>
+        <item name="colorOnSurface">@color/text</item>
+        <item name="colorOnSurfaceVariant">@color/text_muted</item>
+        <item name="colorOutline">@color/outline</item>
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:navigationBarColor">@color/bg</item>
     </style>
 
-    <style name="Theme.SebViewer.Remote" parent="Theme.Material3.Dark.NoActionBar">
+    <style name="Theme.SebViewer.Remote">
         <item name="android:windowBackground">@android:color/black</item>
         <item name="android:statusBarColor">@android:color/black</item>
         <item name="android:navigationBarColor">@android:color/black</item>
     </style>
 
-    <style name="ToolbarKey" parent="Widget.Material3.Button.TonalButton">
+    <!-- keys in the control panel -->
+    <style name="Key" parent="Widget.Material3.Button.UnelevatedButton">
         <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_height">40dp</item>
-        <item name="android:minWidth">48dp</item>
-        <item name="android:paddingLeft">10dp</item>
-        <item name="android:paddingRight">10dp</item>
+        <item name="android:layout_height">42dp</item>
+        <item name="android:minWidth">46dp</item>
+        <item name="android:paddingLeft">12dp</item>
+        <item name="android:paddingRight">12dp</item>
         <item name="android:layout_marginLeft">3dp</item>
         <item name="android:layout_marginRight">3dp</item>
-        <item name="android:textSize">13sp</item>
+        <item name="android:textSize">14sp</item>
         <item name="android:insetTop">0dp</item>
         <item name="android:insetBottom">0dp</item>
         <item name="android:textAllCaps">false</item>
+        <item name="android:textColor">@color/key_text_selector</item>
+        <item name="backgroundTint">@color/key_background</item>
+        <item name="cornerRadius">10dp</item>
+        <item name="iconTint">@color/key_text_selector</item>
+        <item name="iconGravity">textStart</item>
+        <item name="iconSize">18dp</item>
+        <item name="iconPadding">6dp</item>
+        <item name="rippleColor">@color/brand</item>
+    </style>
+
+    <style name="Key.Modifier">
+        <item name="android:checkable">true</item>
+    </style>
+
+    <style name="Key.Mode">
+        <item name="android:checkable">true</item>
+        <item name="android:layout_height">44dp</item>
+        <item name="android:paddingLeft">14dp</item>
+        <item name="android:paddingRight">14dp</item>
+    </style>
+
+    <style name="Key.Danger">
+        <item name="backgroundTint">@color/danger</item>
+        <item name="android:layout_height">44dp</item>
     </style>
 </resources>

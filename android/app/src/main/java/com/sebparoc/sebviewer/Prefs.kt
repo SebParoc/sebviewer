@@ -20,6 +20,10 @@ class Prefs(context: Context) {
     var quality: Int
         get() = sp.getInt("quality", 1)
         set(v) = sp.edit().putInt("quality", v).apply()
+
+    var guideShown: Boolean
+        get() = sp.getBoolean("guide_shown", false)
+        set(v) = sp.edit().putBoolean("guide_shown", v).apply()
 }
 
 /** A PC the user connected to successfully; kept so remote (non-LAN) PCs are one tap away. */
