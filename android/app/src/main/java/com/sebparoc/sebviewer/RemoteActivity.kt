@@ -398,15 +398,31 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
         if (!pillPinned) main.postDelayed(hidePill, 4000)
     }
 
+    private var overlayShown = false
+
     private fun showOverlay(text: String) {
         overlayText.text = text
+        overlayShown = true
+        overlay.animate().cancel()
+        overlay.isClickable = true
+        overlay.isFocusable = true
         overlay.visibility = View.VISIBLE
         overlay.animate().alpha(1f).setDuration(150).start()
     }
 
+    /**
+     * Called for every frame, so it must be idempotent: restarting the fade on each frame
+     * cancelled the previous one before its end action ran, leaving an invisible but
+     * clickable overlay on top that swallowed every touch and button.
+     */
     private fun hideOverlay() {
-        if (overlay.visibility != View.VISIBLE) return
-        overlay.animate().alpha(0f).setDuration(200).withEndAction { overlay.visibility = View.GONE }.start()
+        if (!overlayShown) return
+        overlayShown = false
+        overlay.isClickable = false  // let touches through right away, even mid-fade
+        overlay.isFocusable = false
+        overlay.animate().alpha(0f).setDuration(200).withEndAction {
+            if (!overlayShown) overlay.visibility = View.GONE
+        }.start()
     }
 
     private fun updateStatus() {

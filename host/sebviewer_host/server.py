@@ -64,6 +64,11 @@ class Client:
     held_buttons: set = field(default_factory=set)
     held_keys: set = field(default_factory=set)
     pong: str | None = None
+    started: float = field(default_factory=time.monotonic)
+    frames: int = 0
+    acks: int = 0
+    ack_timeouts: int = 0
+    inputs: dict = field(default_factory=dict)
 
 
 class Server:
@@ -246,7 +251,9 @@ class Server:
             sender.cancel()
             self.clients.pop(ws, None)
             self._release_held(client)
-            log.info("%s disconnected", client.name)
+            log.info("%s disconnected after %.0fs: frames sent %d, acked %d, ack timeouts %d, "
+                     "input %s", client.name, time.monotonic() - client.started, client.frames,
+                     client.acks, client.ack_timeouts, client.inputs or "none")
 
     def _release_held(self, client: Client) -> None:
         for b in list(client.held_buttons):
@@ -269,12 +276,20 @@ class Server:
                     await asyncio.wait_for(client.ack_event.wait(), timeout=3)
                 except asyncio.TimeoutError:
                     client.unacked = 0
+                    client.ack_timeouts += 1
             if size != sent_size:
                 await ws.send(json.dumps({"t": "size", "w": size[0], "h": size[1]}))
                 sent_size = size
             await ws.send(frame)
             client.last_seq = seq
             client.unacked += 1
+            client.frames += 1
+            if client.frames == 1:
+                # App versions <= 0.8.0 fade their "Connecting" overlay out over 200 ms and
+                # restart the fade on every frame; at a steady frame rate it never finishes
+                # and the invisible overlay swallows all input. A short gap after the first
+                # frame lets it complete.
+                await asyncio.sleep(0.35)
 
     # ----------------------------------------------------------------- input
     def _input_worker(self) -> None:
@@ -314,7 +329,10 @@ class Server:
     def _on_message(self, client: Client, msg: dict) -> None:
         t = msg.get("t")
         b = self.backend
+        if t not in ("ack", "ping"):
+            client.inputs[t] = client.inputs.get(t, 0) + 1
         if t == "ack":
+            client.acks += 1
             client.unacked = max(0, client.unacked - 1)
             client.ack_event.set()
         elif t == "ping":
