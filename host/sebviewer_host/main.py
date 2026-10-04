@@ -13,7 +13,7 @@ from pathlib import Path
 
 from . import __version__
 from .config import CONFIG_FILE, get_or_create_pin, load_config, save_config
-from .discovery import Advertiser, is_tailscale, list_ipv4, tailscale_info
+from .discovery import Advertiser, lan_ipv4, tailscale_info
 from .server import Server, StreamSettings
 
 log = logging.getLogger("sebviewer")
@@ -88,9 +88,7 @@ def print_banner(port: int, pin: str | None) -> None:
     print(f"  PIN : {pin}" if pin else "  PIN : not required (run with --require-pin to enable)")
     print(f"  Port: {port}")
     print("  On this network:")
-    for name, addr in list_ipv4():
-        if is_tailscale(addr) or name.startswith(("docker", "br-", "veth", "virbr")):
-            continue
+    for name, addr in lan_ipv4():
         print(f"    {addr:<16} ({name})")
     ts = tailscale_info()
     if ts:

@@ -1,6 +1,8 @@
 package com.sebparoc.sebviewer
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.LinkAddress
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.net.wifi.WifiManager
@@ -9,6 +11,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import java.net.Inet4Address
+import java.net.InetAddress
 
 /** Finds sebviewer hosts on the local network through mDNS / DNS-SD. */
 class HostDiscovery(context: Context, private val onChange: (List<Host>) -> Unit) {
@@ -17,6 +20,7 @@ class HostDiscovery(context: Context, private val onChange: (List<Host>) -> Unit
     private val appContext = context.applicationContext
     private val nsd = appContext.getSystemService(NsdManager::class.java)
     private val wifi = appContext.getSystemService(WifiManager::class.java)
+    private val connectivity = appContext.getSystemService(ConnectivityManager::class.java)
     private var lock: WifiManager.MulticastLock? = null
     private val main = Handler(Looper.getMainLooper())
     private val hosts = LinkedHashMap<String, Host>()
@@ -74,8 +78,7 @@ class HostDiscovery(context: Context, private val onChange: (List<Host>) -> Unit
             }
             override fun onServiceResolved(si: NsdServiceInfo) {
                 val addr = if (Build.VERSION.SDK_INT >= 34) {
-                    si.hostAddresses.firstOrNull { it is Inet4Address }?.hostAddress
-                        ?: si.hostAddresses.firstOrNull()?.hostAddress
+                    pickAddress(si.hostAddresses)
                 } else {
                     @Suppress("DEPRECATION") si.host?.hostAddress
                 }
@@ -90,6 +93,44 @@ class HostDiscovery(context: Context, private val onChange: (List<Host>) -> Unit
                 }
             }
         })
+    }
+
+    /**
+     * A PC can list several addresses (Wi-Fi, Tailscale, Docker...). Take the one on the
+     * phone's own network; Tailscale's only works with its app on, which you don't need here.
+     */
+    private fun pickAddress(addrs: List<InetAddress>): String? {
+        val v4 = addrs.filterIsInstance<Inet4Address>()
+        val local = localNetworks()
+        return (v4.firstOrNull { a -> local.any { inSubnet(a, it) } }
+            ?: v4.firstOrNull { !isTailscale(it) }
+            ?: addrs.firstOrNull())?.hostAddress
+    }
+
+    private fun localNetworks(): List<LinkAddress> = try {
+        @Suppress("DEPRECATION")
+        connectivity.allNetworks.flatMap { connectivity.getLinkProperties(it)?.linkAddresses.orEmpty() }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    private fun inSubnet(a: InetAddress, net: LinkAddress): Boolean {
+        val x = a.address
+        val y = net.address.address
+        if (x.size != y.size) return false
+        var bits = net.prefixLength
+        for (i in x.indices) {
+            if (bits <= 0) break
+            val mask = if (bits >= 8) 0xFF else (0xFF shl (8 - bits)) and 0xFF
+            if ((x[i].toInt() and mask) != (y[i].toInt() and mask)) return false
+            bits -= 8
+        }
+        return true
+    }
+
+    private fun isTailscale(a: Inet4Address): Boolean {
+        val b = a.address
+        return (b[0].toInt() and 0xFF) == 100 && (b[1].toInt() and 0xFF) in 64..127
     }
 
     private fun publish() = onChange(hosts.values.toList())
