@@ -88,6 +88,10 @@ online/offline check; tap one to connect, long press to forget it.
 
 Bluetooth/USB keyboards attached to the phone also work, including Ctrl/Alt shortcuts.
 
+A Bluetooth/USB mouse works like on the PC: the pointer follows it, dragging selects, right and
+middle click and both wheels work. Its side buttons copy (back, Ctrl+C) and paste (forward,
+Ctrl+V; the phone's clipboard is sent first if it has something new).
+
 ## Host options
 
 ```

@@ -34,7 +34,8 @@
         <b>One finger</b> move the pointer\n
         <b>Two fingers</b> scroll · <b>Pinch</b> zoom · <b>Three fingers</b> pan\n
         <b>Drag mode</b> a one-finger drag holds the button\n
-        <b>Trackpad mode</b> move the pointer like on a laptop
+        <b>Trackpad mode</b> move the pointer like on a laptop\n
+        <b>Mouse</b> works like on the PC · side buttons copy (back) and paste (forward)
     </string>
     <string name="got_it">Got it</string>
     <string name="help_gestures">Tap: click · Long press: right click · 1 finger: move pointer · 2 fingers: scroll · Pinch: zoom · 3 fingers: pan</string>

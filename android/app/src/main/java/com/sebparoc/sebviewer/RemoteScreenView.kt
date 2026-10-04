@@ -23,6 +23,8 @@ import kotlin.math.min
  *  - 1 finger drag: move pointer (or press-drag in drag mode, relative in trackpad mode)
  *  - 2 fingers drag: scroll     - 2 finger tap: right click
  *  - pinch: zoom                - 3 fingers drag: pan the zoomed view
+ *
+ * A connected mouse drives the PC pointer directly (see [onMouse]).
  */
 class RemoteScreenView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null,
@@ -148,8 +150,65 @@ class RemoteScreenView @JvmOverloads constructor(
         inputListener?.onMove(nx, ny)
     }
 
+    // -------------------------------------------------------------- mouse
+    // A real mouse (e.g. Bluetooth) is not a finger: the PC pointer follows it while hovering,
+    // its buttons are held for real (so dragging selects) and the wheels scroll.
+    private var mouseButtons = 0
+    private var wheelX = 0f
+    private var wheelY = 0f
+
+    private fun isMouse(e: MotionEvent) = e.getToolType(0) == MotionEvent.TOOL_TYPE_MOUSE
+
+    private fun onMouse(e: MotionEvent, buttons: Int) {
+        cursorX = toNormX(e.x); cursorY = toNormY(e.y)
+        val changed = (buttons xor mouseButtons) and MOUSE_MASK
+        if (changed == 0) sendMove(cursorX, cursorY)
+        for ((bit, button) in MOUSE_BUTTONS) {
+            if (changed and bit != 0) inputListener?.onButton(button, buttons and bit != 0, cursorX, cursorY)
+        }
+        mouseButtons = buttons and MOUSE_MASK
+        if (trackpadMode) invalidate()
+    }
+
+    override fun onHoverEvent(e: MotionEvent): Boolean {
+        if (!isMouse(e) || e.actionMasked == MotionEvent.ACTION_HOVER_EXIT) return super.onHoverEvent(e)
+        onMouse(e, e.buttonState)
+        return true
+    }
+
+    override fun onGenericMotionEvent(e: MotionEvent): Boolean {
+        if (!isMouse(e)) return super.onGenericMotionEvent(e)
+        when (e.actionMasked) {
+            MotionEvent.ACTION_SCROLL -> {
+                // high-resolution wheels report fractions of a notch; a reversal starts afresh
+                val h = e.getAxisValue(MotionEvent.AXIS_HSCROLL)
+                val v = -e.getAxisValue(MotionEvent.AXIS_VSCROLL) // +dy scrolls down on the PC
+                wheelX = if (wheelX * h < 0) h else wheelX + h
+                wheelY = if (wheelY * v < 0) v else wheelY + v
+                val dx = wheelX.toInt()
+                val dy = wheelY.toInt()
+                if (dx != 0 || dy != 0) {
+                    wheelX -= dx; wheelY -= dy
+                    inputListener?.onScroll(dx, dy)
+                }
+            }
+            MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE -> onMouse(e, e.buttonState)
+            else -> return super.onGenericMotionEvent(e)
+        }
+        return true
+    }
+
     // -------------------------------------------------------------- touch
     override fun onTouchEvent(e: MotionEvent): Boolean {
+        if (isMouse(e)) {
+            val buttons = when (e.actionMasked) {
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> 0
+                // some pointing devices report no button while pressed: take it as the left one
+                else -> e.buttonState.takeIf { it and MOUSE_MASK != 0 } ?: MotionEvent.BUTTON_PRIMARY
+            }
+            onMouse(e, buttons)
+            return true
+        }
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 parent?.requestDisallowInterceptTouchEvent(true)
@@ -313,5 +372,11 @@ class RemoteScreenView @JvmOverloads constructor(
         private const val LONG_PRESS_MS = 450L
         private const val TWO_FINGER_TAP_MS = 250L
         private const val TRACKPAD_GAIN = 1.4f
+        private const val MOUSE_MASK =
+            MotionEvent.BUTTON_PRIMARY or MotionEvent.BUTTON_SECONDARY or MotionEvent.BUTTON_TERTIARY
+        // Android button bit -> host button number (1 left, 2 middle, 3 right)
+        private val MOUSE_BUTTONS = listOf(
+            MotionEvent.BUTTON_PRIMARY to 1, MotionEvent.BUTTON_TERTIARY to 2, MotionEvent.BUTTON_SECONDARY to 3,
+        )
     }
 }

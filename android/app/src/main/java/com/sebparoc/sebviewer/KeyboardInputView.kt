@@ -24,6 +24,8 @@ class KeyboardInputView @JvmOverloads constructor(
 
     var onText: ((String) -> Unit)? = null
     var onKey: ((String) -> Unit)? = null
+    /** Sees key events before the IME does; return true to consume. */
+    var onPreImeKey: ((KeyEvent) -> Boolean)? = null
 
     private var ignoreChanges = false
     private var oldSegment = ""
@@ -98,6 +100,9 @@ class KeyboardInputView @JvmOverloads constructor(
         ignoreChanges = true
         try { block() } finally { ignoreChanges = false }
     }
+
+    override fun onKeyPreIme(keyCode: Int, event: KeyEvent): Boolean =
+        onPreImeKey?.invoke(event) == true || super.onKeyPreIme(keyCode, event)
 
     /** Keys the IME sends as key events instead of text edits (e.g. Backspace on an empty buffer). */
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {

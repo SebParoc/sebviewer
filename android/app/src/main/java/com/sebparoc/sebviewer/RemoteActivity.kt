@@ -9,6 +9,7 @@ import android.os.Handler
 import android.os.Looper
 import android.text.Html
 import android.view.HapticFeedbackConstants
+import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
@@ -108,6 +109,8 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
         screen.inputListener = this
         keyInput.onText = { sendText(it) }
         keyInput.onKey = { tapKey(it) }
+        // with the soft keyboard up the IME would eat the mouse's back button to close itself
+        keyInput.onPreImeKey = { mouseSideButton(it) }
 
         // Keep everything above the soft keyboard: the screen view shrinks and re-fits.
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
@@ -265,8 +268,36 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
         releaseModifiers()
     }
 
+    /** Ctrl+[key] on the PC. */
+    private fun ctrlKey(key: String) {
+        releaseModifiers()
+        send(JSONObject().put("t", "key").put("k", "Control_L").put("d", true))
+        send(JSONObject().put("t", "key").put("k", key))
+        send(JSONObject().put("t", "key").put("k", "Control_L").put("d", false))
+    }
+
+    /**
+     * Mouse side buttons reach us as BACK / FORWARD keys: back copies on the PC (the
+     * clipboard sync then brings it to the phone), forward pastes there.
+     */
+    private fun mouseSideButton(event: KeyEvent): Boolean {
+        val code = event.keyCode
+        if (!event.isFromSource(InputDevice.SOURCE_MOUSE) ||
+            (code != KeyEvent.KEYCODE_BACK && code != KeyEvent.KEYCODE_FORWARD)) return false
+        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+            if (code == KeyEvent.KEYCODE_BACK) {
+                ctrlKey("c")
+            } else {
+                syncClipboardToPc() // phone clipboard first, unless the PC already has it
+                ctrlKey("v")
+            }
+        }
+        return true // the release too, or BACK would still start the disconnect prompt
+    }
+
     /** Hardware keyboards (Bluetooth / USB). */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (mouseSideButton(event)) return true
         val code = event.keyCode
         if (code == KeyEvent.KEYCODE_BACK || code == KeyEvent.KEYCODE_VOLUME_UP ||
             code == KeyEvent.KEYCODE_VOLUME_DOWN || code == KeyEvent.KEYCODE_HOME ||
@@ -327,10 +358,7 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
             lastClipSent = text
             send(JSONObject().put("t", "clip").put("s", text))
         }
-        releaseModifiers()
-        send(JSONObject().put("t", "key").put("k", "Control_L").put("d", true))
-        send(JSONObject().put("t", "key").put("k", "v"))
-        send(JSONObject().put("t", "key").put("k", "Control_L").put("d", false))
+        ctrlKey("v")
         setStatus(getString(R.string.clip_pasted, text.take(24).replace('\n', ' ')), R.color.online, autoHide = true)
     }
 
@@ -527,6 +555,10 @@ class RemoteActivity : AppCompatActivity(), RemoteClient.Listener, RemoteScreenV
     override fun onButton(button: Int, down: Boolean, nx: Float, ny: Float) {
         send(JSONObject().put("t", "btn").put("b", button).put("d", down)
             .put("x", nx.toDouble()).put("y", ny.toDouble()))
+        if (!down) { // a click is over, same as onClick
+            releaseModifiers()
+            keyInput.resetBuffer()
+        }
     }
 
     override fun onScroll(dx: Int, dy: Int) {
